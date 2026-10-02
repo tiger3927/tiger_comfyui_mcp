@@ -1,0 +1,2 @@
+# tiger_comfyui_mcp
+采用comfyui的websocket页面协议，实现的mcp工具，支持lcomfyui_ogin插件！
