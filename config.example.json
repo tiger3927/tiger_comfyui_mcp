@@ -1,0 +1,37 @@
+{
+  "comfyui_instances": [
+    {
+      "name": "instance-1",
+      "url": "https://your-comfyui.example.com",
+      "password": "YOUR_COMFYUI_PASSWORD"
+    },
+    {
+      "name": "instance-2",
+      "url": "http://your-second-comfyui.example.com:8188",
+      "password": "YOUR_COMFYUI_PASSWORD_2",
+      "workflow_rules": {
+        "exclude": ["*video*"],
+        "only": ["hello"]
+      }
+    }
+  ],
+  "default_instance": "instance-1",
+  "routing": {
+    "weights": { "pending": 1.0, "running": 2.0 }
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 18800,
+    "mcp_allowed_hosts": ["127.0.0.1:*", "localhost:*", "CHANGE_ME_PUBLIC_IP:*"],
+    "mcp_allowed_origins": []
+  },
+  "command_token": "CHANGE_ME_FULL_ACCESS_TOKEN",
+  "query_token": "CHANGE_ME_READ_ONLY_TOKEN",
+  "workflows_dir": "workflows",
+  "output_dir": "output",
+  "log_dir": "log",
+  "output_retention_days": 7,
+  "cleanup_interval_hours": 6,
+  "task_retention_hours": 24,
+  "task_max_retained": 200
+}

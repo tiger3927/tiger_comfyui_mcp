@@ -1,0 +1,49 @@
+{
+  "1": {
+    "inputs": {
+      "batch_size_s": 300,
+      "unload_model": true,
+      "audio": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "AVASRTimestamp",
+    "_meta": {
+      "title": "AV ASR Timestamp"
+    }
+  },
+  "10": {
+    "inputs": {
+      "text": [
+        "1",
+        1
+      ]
+    },
+    "class_type": "ShowText|pysssss",
+    "_meta": {
+      "title": "OUTPUT_ASR_JSON"
+    }
+  },
+  "12": {
+    "inputs": {
+      "audio": ""
+    },
+    "class_type": "LoadAudio",
+    "_meta": {
+      "title": "INPUT_AUDIO_FILE"
+    }
+  },
+  "13": {
+    "inputs": {
+      "text": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "ShowText|pysssss",
+    "_meta": {
+      "title": "OUTPUT_ASR_TEXT"
+    }
+  }
+}

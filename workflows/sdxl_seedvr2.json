@@ -1,0 +1,339 @@
+{
+  "120": {
+    "inputs": {
+      "boolean": [
+        "121",
+        0
+      ],
+      "on_true": [
+        "124",
+        0
+      ],
+      "on_false": [
+        "124",
+        1
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "横竖判断"
+    }
+  },
+  "121": {
+    "inputs": {
+      "comparison": "a < b",
+      "a": [
+        "124",
+        0
+      ],
+      "b": [
+        "124",
+        1
+      ]
+    },
+    "class_type": "easy compare",
+    "_meta": {
+      "title": "比较"
+    }
+  },
+  "122": {
+    "inputs": {
+      "expression": "a*1.5",
+      "a": [
+        "120",
+        0
+      ]
+    },
+    "class_type": "MathExpression|pysssss",
+    "_meta": {
+      "title": "Math Expression 🐍"
+    }
+  },
+  "123": {
+    "inputs": {
+      "seed": [
+        "149",
+        0
+      ],
+      "steps": 20,
+      "cfg": 3.5,
+      "sampler_name": "dpmpp_2m_sde",
+      "scheduler": "karras",
+      "denoise": 0.03,
+      "model": [
+        "131",
+        0
+      ],
+      "positive": [
+        "128",
+        0
+      ],
+      "negative": [
+        "141",
+        0
+      ],
+      "latent_image": [
+        "133",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "K采样器"
+    }
+  },
+  "124": {
+    "inputs": {
+      "image": [
+        "137",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "获取图像尺寸"
+    }
+  },
+  "125": {
+    "inputs": {
+      "blocks_to_swap": 25,
+      "offload_io_components": true
+    },
+    "class_type": "SeedVR2BlockSwap",
+    "_meta": {
+      "title": "SeedVR2 BlockSwap Config"
+    }
+  },
+  "126": {
+    "inputs": {
+      "tiled_vae": true,
+      "vae_tile_size": 512,
+      "vae_tile_overlap": 64,
+      "preserve_vram": true,
+      "cache_model": true,
+      "enable_debug": false,
+      "device": "cuda:0"
+    },
+    "class_type": "SeedVR2ExtraArgs",
+    "_meta": {
+      "title": "SeedVR2 Extra Args"
+    }
+  },
+  "127": {
+    "inputs": {
+      "model": "seedvr2_ema_7b-Q8_K_M.gguf",
+      "seed": 42,
+      "new_resolution": [
+        "122",
+        0
+      ],
+      "batch_size": 1,
+      "color_correction": "wavelet",
+      "input_noise_scale": 0,
+      "latent_noise_scale": 0,
+      "images": [
+        "137",
+        0
+      ],
+      "block_swap_config": [
+        "125",
+        0
+      ],
+      "extra_args": [
+        "126",
+        0
+      ]
+    },
+    "class_type": "SeedVR2",
+    "_meta": {
+      "title": "SeedVR2 Video Upscaler"
+    }
+  },
+  "128": {
+    "inputs": {
+      "text": "Extremely realistic skin details, blemishes, imperfections, pores.",
+      "clip": [
+        "131",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP文本编码"
+    }
+  },
+  "129": {
+    "inputs": {
+      "image": [
+        "127",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "获取图像尺寸"
+    }
+  },
+  "131": {
+    "inputs": {
+      "ckpt_name": "SDXL/epicrealismXL_vxviiCrystalclear.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Checkpoint加载器（简易）"
+    }
+  },
+  "132": {
+    "inputs": {
+      "samples": [
+        "123",
+        0
+      ],
+      "vae": [
+        "131",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "133": {
+    "inputs": {
+      "pixels": [
+        "148",
+        0
+      ],
+      "vae": [
+        "131",
+        2
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE编码"
+    }
+  },
+  "137": {
+    "inputs": {
+      "upscale_method": "nearest-exact",
+      "scale_by": 1,
+      "image": [
+        "150",
+        0
+      ]
+    },
+    "class_type": "ImageScaleBy",
+    "_meta": {
+      "title": "缩放图像（比例）"
+    }
+  },
+  "138": {
+    "inputs": {
+      "purge_cache": true,
+      "purge_models": true,
+      "anything": [
+        "137",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: PurgeVRAM",
+    "_meta": {
+      "title": "图层工具：清除VRAM"
+    }
+  },
+  "141": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "131",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP文本编码"
+    }
+  },
+  "146": {
+    "inputs": {
+      "filename_prefix": "seedvr2_sdxl",
+      "images": [
+        "127",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  },
+  "147": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "BOOLConstant",
+    "_meta": {
+      "title": "INPUT_SDXL_BOOL_VALUE"
+    }
+  },
+  "148": {
+    "inputs": {
+      "width": 0,
+      "height": 0,
+      "upscale_method": "lanczos",
+      "keep_proportion": "resize",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 16,
+      "device": "cpu",
+      "image": [
+        "151",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize Image v2"
+    }
+  },
+  "149": {
+    "inputs": {
+      "seed": 42
+    },
+    "class_type": "easy seed",
+    "_meta": {
+      "title": "随机种"
+    }
+  },
+  "150": {
+    "inputs": {
+      "switch": [
+        "147",
+        0
+      ],
+      "on_false": [
+        "148",
+        0
+      ],
+      "on_true": [
+        "132",
+        0
+      ]
+    },
+    "class_type": "LazySwitchKJ",
+    "_meta": {
+      "title": "Lazy Switch KJ"
+    }
+  },
+  "151": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUT_IMAGE_FILE"
+    }
+  }
+}

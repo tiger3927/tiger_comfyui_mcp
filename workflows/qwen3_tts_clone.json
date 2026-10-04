@@ -1,0 +1,84 @@
+{
+  "14": {
+    "inputs": {
+      "target_text": [
+        "23",
+        0
+      ],
+      "model_size": "1.7B",
+      "device": "auto",
+      "precision": "bf16",
+      "language": "Auto",
+      "reference_text": [
+        "21",
+        0
+      ],
+      "x_vector_only": false,
+      "max_new_tokens": 2048,
+      "do_sample": false,
+      "top_p": 0.9,
+      "top_k": 50,
+      "temperature": 0.9,
+      "repetition_penalty": 1,
+      "attention": "auto",
+      "unload_models": true,
+      "seed": 1082463794021365,
+      "reference_audio": [
+        "25",
+        0
+      ]
+    },
+    "class_type": "AILab_Qwen3TTSVoiceClone_Advanced",
+    "_meta": {
+      "title": "Voice Clone (QwenTTS) Advanced"
+    }
+  },
+  "21": {
+    "inputs": {
+      "model_size": "small",
+      "language": "auto",
+      "unload_models": true,
+      "audio": [
+        "25",
+        0
+      ]
+    },
+    "class_type": "AILab_Qwen3TTSWhisperSTT",
+    "_meta": {
+      "title": "Whisper STT (QwenTTS)"
+    }
+  },
+  "23": {
+    "inputs": {
+      "text": "你好，这是qwen3-tts语音克隆！"
+    },
+    "class_type": "Text Multiline",
+    "_meta": {
+      "title": "INPUT_SPEAK_TEXT"
+    }
+  },
+  "25": {
+    "inputs": {
+      "audio": ""
+    },
+    "class_type": "LoadAudio",
+    "_meta": {
+      "title": "INPUT_AUDIO_FILE"
+    }
+  },
+  "26": {
+    "inputs": {
+      "filename_prefix": "qwen3_tts_clone",
+      "quality": "V0",
+      "audioUI": "",
+      "audio": [
+        "14",
+        0
+      ]
+    },
+    "class_type": "SaveAudioMP3",
+    "_meta": {
+      "title": "保存音频 (MP3)"
+    }
+  }
+}

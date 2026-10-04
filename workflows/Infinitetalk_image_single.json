@@ -1,0 +1,628 @@
+{
+  "120": {
+    "inputs": {
+      "model": "MeiGen-AI/infinitetalk_single.safetensors"
+    },
+    "class_type": "MultiTalkModelLoader",
+    "_meta": {
+      "title": "Multi/InfiniteTalk Model Loader"
+    }
+  },
+  "122": {
+    "inputs": {
+      "model": "Wan2.1/Wan2_1-I2V-14B-480P_fp8_e4m3fn.safetensors",
+      "base_precision": "fp16",
+      "quantization": "fp8_e4m3fn",
+      "load_device": "offload_device",
+      "attention_mode": "sageattn",
+      "rms_norm_function": "default",
+      "compile_args": [
+        "177",
+        0
+      ],
+      "block_swap_args": [
+        "134",
+        0
+      ],
+      "lora": [
+        "267",
+        0
+      ],
+      "multitalk_model": [
+        "120",
+        0
+      ]
+    },
+    "class_type": "WanVideoModelLoader",
+    "_meta": {
+      "title": "WanVideo Model Loader"
+    }
+  },
+  "128": {
+    "inputs": {
+      "steps": 4,
+      "cfg": 1,
+      "shift": 8,
+      "seed": 42,
+      "force_offload": true,
+      "scheduler": "flowmatch_distill",
+      "riflex_freq_index": 0,
+      "denoise_strength": 1,
+      "batched_cfg": false,
+      "rope_function": "comfy",
+      "start_step": 0,
+      "end_step": -1,
+      "add_noise_to_samples": false,
+      "model": [
+        "122",
+        0
+      ],
+      "image_embeds": [
+        "192",
+        0
+      ],
+      "text_embeds": [
+        "135",
+        0
+      ],
+      "multitalk_embeds": [
+        "194",
+        0
+      ]
+    },
+    "class_type": "WanVideoSampler",
+    "_meta": {
+      "title": "WanVideo Sampler"
+    }
+  },
+  "129": {
+    "inputs": {
+      "model_name": "wan2.1/Wan2_1_VAE_bf16.safetensors",
+      "precision": "bf16",
+      "use_cpu_cache": false,
+      "verbose": false
+    },
+    "class_type": "WanVideoVAELoader",
+    "_meta": {
+      "title": "WanVideo VAE Loader"
+    }
+  },
+  "130": {
+    "inputs": {
+      "enable_vae_tiling": false,
+      "tile_x": 272,
+      "tile_y": 272,
+      "tile_stride_x": 144,
+      "tile_stride_y": 128,
+      "normalization": "default",
+      "vae": [
+        "129",
+        0
+      ],
+      "samples": [
+        "128",
+        0
+      ]
+    },
+    "class_type": "WanVideoDecode",
+    "_meta": {
+      "title": "WanVideo Decode"
+    }
+  },
+  "131": {
+    "inputs": {
+      "frame_rate": [
+        "257",
+        0
+      ],
+      "loop_count": 0,
+      "filename_prefix": "wan2_1_talk",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "264",
+        0
+      ],
+      "audio": [
+        "194",
+        1
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "134": {
+    "inputs": {
+      "blocks_to_swap": 20,
+      "offload_img_emb": false,
+      "offload_txt_emb": false,
+      "use_non_blocking": true,
+      "vace_blocks_to_swap": 0,
+      "prefetch_blocks": 0,
+      "block_swap_debug": false
+    },
+    "class_type": "WanVideoBlockSwap",
+    "_meta": {
+      "title": "WanVideo Block Swap"
+    }
+  },
+  "135": {
+    "inputs": {
+      "positive_prompt": [
+        "260",
+        0
+      ],
+      "negative_prompt": "Vibrant colors, overexposure, static, blurred details, subtitles, style, artwork, painting, still image, overall graying, worst quality, low quality, JPEG compression residue, ugly, mutilated, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, malformed limbs, fused fingers, still image, cluttered background, three legs, crowded background, walking backwards, character standing still",
+      "force_offload": true,
+      "use_disk_cache": false,
+      "device": "gpu",
+      "t5": [
+        "136",
+        0
+      ]
+    },
+    "class_type": "WanVideoTextEncode",
+    "_meta": {
+      "title": "WanVideo TextEncode"
+    }
+  },
+  "136": {
+    "inputs": {
+      "model_name": "kijia/umt5-xxl-enc-bf16.safetensors",
+      "precision": "bf16",
+      "load_device": "offload_device",
+      "quantization": "disabled"
+    },
+    "class_type": "LoadWanVideoT5TextEncoder",
+    "_meta": {
+      "title": "WanVideo T5 Text Encoder Loader"
+    }
+  },
+  "137": {
+    "inputs": {
+      "model": "TencentGameMate/chinese-wav2vec2-base",
+      "base_precision": "fp16",
+      "load_device": "main_device"
+    },
+    "class_type": "DownloadAndLoadWav2VecModel",
+    "_meta": {
+      "title": "(Down)load Wav2Vec Model"
+    }
+  },
+  "159": {
+    "inputs": {
+      "start_time": "0:00",
+      "end_time": [
+        "243",
+        0
+      ],
+      "audio": [
+        "281",
+        0
+      ]
+    },
+    "class_type": "AudioCrop",
+    "_meta": {
+      "title": "AudioCrop"
+    }
+  },
+  "171": {
+    "inputs": {
+      "width": [
+        "251",
+        0
+      ],
+      "height": [
+        "222",
+        0
+      ],
+      "upscale_method": "lanczos",
+      "keep_proportion": "crop",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 2,
+      "device": "cpu",
+      "image": [
+        "282",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize Image v2"
+    }
+  },
+  "173": {
+    "inputs": {
+      "clip_name": "wan/clip_vision_h.safetensors"
+    },
+    "class_type": "CLIPVisionLoader",
+    "_meta": {
+      "title": "加载CLIP视觉"
+    }
+  },
+  "177": {
+    "inputs": {
+      "backend": "inductor",
+      "fullgraph": false,
+      "mode": "default",
+      "dynamic": false,
+      "dynamo_cache_size_limit": 64,
+      "compile_transformer_blocks_only": true,
+      "dynamo_recompile_limit": 128,
+      "force_parameter_static_shapes": true,
+      "allow_unmerged_lora_compile": true
+    },
+    "class_type": "WanVideoTorchCompileSettings",
+    "_meta": {
+      "title": "WanVideo Torch Compile Settings"
+    }
+  },
+  "192": {
+    "inputs": {
+      "width": [
+        "171",
+        1
+      ],
+      "height": [
+        "171",
+        2
+      ],
+      "frame_window_size": 81,
+      "motion_frame": 25,
+      "force_offload": false,
+      "colormatch": "disabled",
+      "tiled_vae": false,
+      "mode": "auto",
+      "output_path": "",
+      "vae": [
+        "129",
+        0
+      ],
+      "start_image": [
+        "171",
+        0
+      ],
+      "clip_embeds": [
+        "193",
+        0
+      ]
+    },
+    "class_type": "WanVideoImageToVideoMultiTalk",
+    "_meta": {
+      "title": "WanVideo Long I2V Multi/InfiniteTalk"
+    }
+  },
+  "193": {
+    "inputs": {
+      "strength_1": 1,
+      "strength_2": 1,
+      "crop": "center",
+      "combine_embeds": "average",
+      "force_offload": true,
+      "tiles": 0,
+      "ratio": 0.5000000000000001,
+      "clip_vision": [
+        "173",
+        0
+      ],
+      "image_1": [
+        "171",
+        0
+      ]
+    },
+    "class_type": "WanVideoClipVisionEncode",
+    "_meta": {
+      "title": "WanVideo ClipVision Encode"
+    }
+  },
+  "194": {
+    "inputs": {
+      "normalize_loudness": false,
+      "num_frames": [
+        "235",
+        0
+      ],
+      "fps": [
+        "257",
+        0
+      ],
+      "audio_scale": 1,
+      "audio_cfg_scale": 1,
+      "multi_audio_type": "add",
+      "add_noise_floor": false,
+      "smooth_transients": false,
+      "wav2vec_model": [
+        "137",
+        0
+      ],
+      "audio_1": [
+        "278",
+        0
+      ]
+    },
+    "class_type": "MultiTalkWav2VecEmbeds",
+    "_meta": {
+      "title": "Multi/InfiniteTalk Wav2vec2 Embeds"
+    }
+  },
+  "222": {
+    "inputs": {
+      "value": 960
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "INPUT_HEIGHT_VALUE"
+    }
+  },
+  "223": {
+    "inputs": {
+      "value": 3
+    },
+    "class_type": "FloatConstant",
+    "_meta": {
+      "title": "INPUT_SECONDS_VALUE"
+    }
+  },
+  "235": {
+    "inputs": {
+      "expression": "(a*b)+1",
+      "a": [
+        "223",
+        0
+      ],
+      "b": [
+        "257",
+        0
+      ]
+    },
+    "class_type": "MathExpression|pysssss",
+    "_meta": {
+      "title": "Math Expression 🐍"
+    }
+  },
+  "237": {
+    "inputs": {
+      "expression": "round(a/60)",
+      "a": [
+        "223",
+        0
+      ]
+    },
+    "class_type": "MathExpression|pysssss",
+    "_meta": {
+      "title": "Math Expression 🐍"
+    }
+  },
+  "243": {
+    "inputs": {
+      "string_a": [
+        "247",
+        0
+      ],
+      "string_b": [
+        "246",
+        0
+      ],
+      "delimiter": ":"
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "连接"
+    }
+  },
+  "244": {
+    "inputs": {
+      "expression": "ceil(a-(b*60))",
+      "a": [
+        "223",
+        0
+      ],
+      "b": [
+        "237",
+        0
+      ]
+    },
+    "class_type": "MathExpression|pysssss",
+    "_meta": {
+      "title": "Math Expression 🐍"
+    }
+  },
+  "246": {
+    "inputs": {
+      "int_": [
+        "244",
+        0
+      ]
+    },
+    "class_type": "CR Integer To String",
+    "_meta": {
+      "title": "🔧 CR Integer To String"
+    }
+  },
+  "247": {
+    "inputs": {
+      "int_": [
+        "237",
+        0
+      ]
+    },
+    "class_type": "CR Integer To String",
+    "_meta": {
+      "title": "🔧 CR Integer To String"
+    }
+  },
+  "248": {
+    "inputs": {
+      "prefix": "多人配音  时间长度",
+      "value": [
+        "243",
+        0
+      ]
+    },
+    "class_type": "ConsoleDebug+",
+    "_meta": {
+      "title": "🔧 Console Debug"
+    }
+  },
+  "251": {
+    "inputs": {
+      "value": 544
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "INPUT_WIDTH_VALUE"
+    }
+  },
+  "257": {
+    "inputs": {
+      "value": 16
+    },
+    "class_type": "FloatConstant",
+    "_meta": {
+      "title": "INPUT_FPS_VALUE"
+    }
+  },
+  "259": {
+    "inputs": {
+      "text": "人物说话"
+    },
+    "class_type": "Text Multiline",
+    "_meta": {
+      "title": "INPUT_PROMPT_TEXT"
+    }
+  },
+  "260": {
+    "inputs": {
+      "from_translate": "auto",
+      "to_translate": "en",
+      "manual_translate": false,
+      "Manual Trasnlate": "Manual Trasnlate",
+      "text": [
+        "259",
+        0
+      ]
+    },
+    "class_type": "GoogleTranslateTextNode",
+    "_meta": {
+      "title": "Google Translate Text Node"
+    }
+  },
+  "262": {
+    "inputs": {
+      "start_index": -1,
+      "num_frames": 1,
+      "images": [
+        "130",
+        0
+      ]
+    },
+    "class_type": "GetImageRangeFromBatch",
+    "_meta": {
+      "title": "Get Image or Mask Range From Batch"
+    }
+  },
+  "263": {
+    "inputs": {
+      "filename_prefix": "wan2_1_talk_end_frame",
+      "images": [
+        "262",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  },
+  "264": {
+    "inputs": {
+      "color_space": "RGB",
+      "factor": 1,
+      "device": "auto",
+      "batch_size": 0,
+      "image": [
+        "130",
+        0
+      ],
+      "reference": [
+        "282",
+        0
+      ]
+    },
+    "class_type": "ImageColorMatch+",
+    "_meta": {
+      "title": "🔧 Image Color Match"
+    }
+  },
+  "267": {
+    "inputs": {
+      "lora_0": "Wan2.1/Lightx2v/官方/Wan21_I2V_14B_lightx2v_cfg_step_distill_lora_rank64.safetensors",
+      "strength_0": 0.8600000000000002,
+      "lora_1": "Wan2.2/Wan2.2-Fun-Reward/Wan2.2-Fun-A14B-InP-low-noise-MPS.safetensors",
+      "strength_1": 0.6000000000000001,
+      "lora_2": "none",
+      "strength_2": 1,
+      "lora_3": "none",
+      "strength_3": 1,
+      "lora_4": "none",
+      "strength_4": 1,
+      "low_mem_load": false,
+      "merge_loras": true
+    },
+    "class_type": "WanVideoLoraSelectMulti",
+    "_meta": {
+      "title": "WanVideo Lora Select Multi"
+    }
+  },
+  "278": {
+    "inputs": {
+      "model": [
+        "279",
+        0
+      ],
+      "audio": [
+        "159",
+        0
+      ]
+    },
+    "class_type": "MelBandRoFormerSampler",
+    "_meta": {
+      "title": "Mel-Band RoFormer Sampler"
+    }
+  },
+  "279": {
+    "inputs": {
+      "model_name": "Wan2.2/kijia/MelBandRoformer_fp16.safetensors"
+    },
+    "class_type": "MelBandRoFormerModelLoader",
+    "_meta": {
+      "title": "Mel-Band RoFormer Model Loader"
+    }
+  },
+  "281": {
+    "inputs": {
+      "audio": ""
+    },
+    "class_type": "LoadAudio",
+    "_meta": {
+      "title": "INPUT_AUDIO_FILE"
+    }
+  },
+  "282": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUT_IMAGE_FILE"
+    }
+  }
+}

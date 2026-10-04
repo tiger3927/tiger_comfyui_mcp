@@ -1,0 +1,541 @@
+{
+  "84": {
+    "inputs": {
+      "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "type": "wan",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "加载CLIP"
+    }
+  },
+  "90": {
+    "inputs": {
+      "vae_name": "wan2.1/wan_2.1_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "加载VAE"
+    }
+  },
+  "116": {
+    "inputs": {
+      "model_name": "Wan2.2/SmoothMix/smoothMixWan22I2V14B_i2vHigh.safetensors",
+      "weight_dtype": "default",
+      "compute_dtype": "default",
+      "patch_cublaslinear": false,
+      "sage_attention": "auto",
+      "enable_fp16_accumulation": true
+    },
+    "class_type": "DiffusionModelLoaderKJ",
+    "_meta": {
+      "title": "Diffusion Model Loader KJ"
+    }
+  },
+  "117": {
+    "inputs": {
+      "model_name": "Wan2.2/SmoothMix/smoothMixWan22I2V14B_i2vLow.safetensors",
+      "weight_dtype": "default",
+      "compute_dtype": "default",
+      "patch_cublaslinear": false,
+      "sage_attention": "auto",
+      "enable_fp16_accumulation": true
+    },
+    "class_type": "DiffusionModelLoaderKJ",
+    "_meta": {
+      "title": "Diffusion Model Loader KJ"
+    }
+  },
+  "128": {
+    "inputs": {
+      "step": [
+        "672",
+        0
+      ],
+      "sigmas": [
+        "298",
+        0
+      ]
+    },
+    "class_type": "SplitSigmas",
+    "_meta": {
+      "title": "分离Sigma"
+    }
+  },
+  "136": {
+    "inputs": {
+      "width": [
+        "711",
+        1
+      ],
+      "height": [
+        "711",
+        2
+      ],
+      "upscale_method": "lanczos",
+      "keep_proportion": "crop",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 16,
+      "device": "cpu",
+      "image": [
+        "705",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize Image v2"
+    }
+  },
+  "295": {
+    "inputs": {
+      "pixels": [
+        "136",
+        0
+      ],
+      "vae": [
+        "90",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE编码"
+    }
+  },
+  "297": {
+    "inputs": {
+      "shift": 13.000000000000002,
+      "model": [
+        "300",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingSD3",
+    "_meta": {
+      "title": "采样算法（SD3）"
+    }
+  },
+  "298": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": [
+        "670",
+        0
+      ],
+      "denoise": 1,
+      "model": [
+        "297",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "基本调度器"
+    }
+  },
+  "299": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "K采样器选择"
+    }
+  },
+  "300": {
+    "inputs": {
+      "lora_name": "Wan2.2/SVI_v2_PRO_Wan2.2-I2V-Lora模型/SVI_v2_PRO_Wan2.2-I2V-A14B_HIGH_lora_rank_128_fp16.safetensors",
+      "strength_model": 1,
+      "model": [
+        "116",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoRA加载器（仅模型）"
+    }
+  },
+  "304": {
+    "inputs": {
+      "lora_name": "Wan2.2/SVI_v2_PRO_Wan2.2-I2V-Lora模型/SVI_v2_PRO_Wan2.2-I2V-A14B_LOW_lora_rank_128_fp16.safetensors",
+      "strength_model": 1,
+      "model": [
+        "117",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoRA加载器（仅模型）"
+    }
+  },
+  "317": {
+    "inputs": {
+      "frame_rate": [
+        "702",
+        5
+      ],
+      "loop_count": 0,
+      "filename_prefix": "Wan22-SVI-V2",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "496",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "490": {
+    "inputs": {},
+    "class_type": "DisableNoise",
+    "_meta": {
+      "title": "禁用噪波"
+    }
+  },
+  "491": {
+    "inputs": {
+      "cfg": 1,
+      "start_percent": 0,
+      "end_percent": 1,
+      "model": [
+        "304",
+        0
+      ],
+      "positive": [
+        "500",
+        0
+      ],
+      "negative": [
+        "500",
+        1
+      ]
+    },
+    "class_type": "ScheduledCFGGuidance",
+    "_meta": {
+      "title": "Scheduled CFG Guidance"
+    }
+  },
+  "492": {
+    "inputs": {
+      "cfg": 1,
+      "start_percent": 0,
+      "end_percent": 1,
+      "model": [
+        "300",
+        0
+      ],
+      "positive": [
+        "500",
+        0
+      ],
+      "negative": [
+        "500",
+        1
+      ]
+    },
+    "class_type": "ScheduledCFGGuidance",
+    "_meta": {
+      "title": "Scheduled CFG Guidance"
+    }
+  },
+  "493": {
+    "inputs": {
+      "noise_seed": 2325
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "随机噪波"
+    }
+  },
+  "494": {
+    "inputs": {
+      "text": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
+      "clip": [
+        "84",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP文本编码"
+    }
+  },
+  "495": {
+    "inputs": {
+      "text": [
+        "688",
+        0
+      ],
+      "clip": [
+        "84",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP文本编码"
+    }
+  },
+  "496": {
+    "inputs": {
+      "samples": [
+        "498",
+        0
+      ],
+      "vae": [
+        "90",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "497": {
+    "inputs": {
+      "noise": [
+        "493",
+        0
+      ],
+      "guider": [
+        "492",
+        0
+      ],
+      "sampler": [
+        "299",
+        0
+      ],
+      "sigmas": [
+        "128",
+        0
+      ],
+      "latent_image": [
+        "500",
+        2
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "自定义采样器（高级）"
+    }
+  },
+  "498": {
+    "inputs": {
+      "noise": [
+        "490",
+        0
+      ],
+      "guider": [
+        "491",
+        0
+      ],
+      "sampler": [
+        "299",
+        0
+      ],
+      "sigmas": [
+        "128",
+        1
+      ],
+      "latent_image": [
+        "497",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "自定义采样器（高级）"
+    }
+  },
+  "499": {
+    "inputs": {
+      "overlap": 5,
+      "overlap_side": "source",
+      "overlap_mode": "linear_blend",
+      "source_images": [
+        "711",
+        0
+      ],
+      "new_images": [
+        "496",
+        0
+      ]
+    },
+    "class_type": "ImageBatchExtendWithOverlap",
+    "_meta": {
+      "title": "Image Batch Extend With Overlap"
+    }
+  },
+  "500": {
+    "inputs": {
+      "length": 81,
+      "motion_latent_count": 1,
+      "positive": [
+        "495",
+        0
+      ],
+      "negative": [
+        "494",
+        0
+      ],
+      "anchor_samples": [
+        "295",
+        0
+      ],
+      "prev_samples": [
+        "697",
+        0
+      ]
+    },
+    "class_type": "WanImageToVideoSVIPro",
+    "_meta": {
+      "title": "WanImageToVideoSVIPro"
+    }
+  },
+  "670": {
+    "inputs": {
+      "value": 6
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "步数"
+    }
+  },
+  "672": {
+    "inputs": {
+      "a": [
+        "670",
+        0
+      ],
+      "b": 2,
+      "operation": "divide"
+    },
+    "class_type": "easy mathInt",
+    "_meta": {
+      "title": "整数运算"
+    }
+  },
+  "688": {
+    "inputs": {
+      "text": "继续"
+    },
+    "class_type": "Text Multiline",
+    "_meta": {
+      "title": "INPUT_PROMPT_TEXT"
+    }
+  },
+  "697": {
+    "inputs": {
+      "pixels": [
+        "711",
+        0
+      ],
+      "vae": [
+        "90",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE编码"
+    }
+  },
+  "701": {
+    "inputs": {
+      "video": "",
+      "force_rate": 0,
+      "custom_width": 0,
+      "custom_height": 0,
+      "frame_load_cap": 0,
+      "skip_first_frames": 0,
+      "select_every_nth": 1,
+      "format": "AnimateDiff"
+    },
+    "class_type": "VHS_LoadVideo",
+    "_meta": {
+      "title": "INPUT_LAST_VIDEO_FILE"
+    }
+  },
+  "702": {
+    "inputs": {
+      "video_info": [
+        "701",
+        3
+      ]
+    },
+    "class_type": "VHS_VideoInfo",
+    "_meta": {
+      "title": "Video Info 🎥🅥🅗🅢"
+    }
+  },
+  "705": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUT_IMAGE_FILE"
+    }
+  },
+  "711": {
+    "inputs": {
+      "width": 0,
+      "height": 0,
+      "upscale_method": "lanczos",
+      "keep_proportion": "crop",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 16,
+      "device": "cpu",
+      "image": [
+        "701",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize Image v2"
+    }
+  },
+  "715": {
+    "inputs": {
+      "filename_prefix": "Wan22-SVI-V2",
+      "images": [
+        "716",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  },
+  "716": {
+    "inputs": {
+      "start_index": -1,
+      "num_frames": 1,
+      "images": [
+        "496",
+        0
+      ]
+    },
+    "class_type": "GetImageRangeFromBatch",
+    "_meta": {
+      "title": "Get Image or Mask Range From Batch"
+    }
+  }
+}

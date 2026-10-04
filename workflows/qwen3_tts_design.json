@@ -1,0 +1,64 @@
+{
+  "15": {
+    "inputs": {
+      "text": [
+        "19",
+        0
+      ],
+      "instruct": [
+        "16",
+        0
+      ],
+      "model_size": "1.7B",
+      "device": "auto",
+      "precision": "bf16",
+      "language": "Auto",
+      "max_new_tokens": 2048,
+      "do_sample": false,
+      "top_p": 0.9,
+      "top_k": 50,
+      "temperature": 0.9,
+      "repetition_penalty": 1,
+      "attention": "auto",
+      "unload_models": true,
+      "seed": 42
+    },
+    "class_type": "AILab_Qwen3TTSVoiceDesign_Advanced",
+    "_meta": {
+      "title": "Voice Design (QwenTTS) Advanced"
+    }
+  },
+  "16": {
+    "inputs": {
+      "text": ""
+    },
+    "class_type": "Text Multiline",
+    "_meta": {
+      "title": "INPUT_DESIGN_TEXT"
+    }
+  },
+  "18": {
+    "inputs": {
+      "filename_prefix": "qwen3_tts_design",
+      "quality": "V0",
+      "audioUI": "",
+      "audio": [
+        "15",
+        0
+      ]
+    },
+    "class_type": "SaveAudioMP3",
+    "_meta": {
+      "title": "保存音频 (MP3)"
+    }
+  },
+  "19": {
+    "inputs": {
+      "text": ""
+    },
+    "class_type": "Text Multiline",
+    "_meta": {
+      "title": "INPUT_SPEAK_TEXT"
+    }
+  }
+}

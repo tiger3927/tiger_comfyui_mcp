@@ -1,0 +1,78 @@
+{
+  "7": {
+    "inputs": {
+      "frame_rate": [
+        "8",
+        5
+      ],
+      "loop_count": 0,
+      "filename_prefix": "flashvsr",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "10",
+        0
+      ],
+      "audio": [
+        "13",
+        2
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "8": {
+    "inputs": {
+      "video_info": [
+        "13",
+        3
+      ]
+    },
+    "class_type": "VHS_VideoInfo",
+    "_meta": {
+      "title": "Video Info 🎥🅥🅗🅢"
+    }
+  },
+  "10": {
+    "inputs": {
+      "model": "FlashVSR",
+      "mode": "full",
+      "scale": 2,
+      "tiled_vae": true,
+      "tiled_dit": true,
+      "unload_dit": false,
+      "seed": 42,
+      "frames": [
+        "13",
+        0
+      ]
+    },
+    "class_type": "FlashVSRNode",
+    "_meta": {
+      "title": "FlashVSR Ultra-Fast"
+    }
+  },
+  "13": {
+    "inputs": {
+      "video": "",
+      "force_rate": 0,
+      "custom_width": 0,
+      "custom_height": 0,
+      "frame_load_cap": 0,
+      "skip_first_frames": 0,
+      "select_every_nth": 1,
+      "format": "AnimateDiff"
+    },
+    "class_type": "VHS_LoadVideo",
+    "_meta": {
+      "title": "INPUT_VIDEO_FILE"
+    }
+  }
+}
