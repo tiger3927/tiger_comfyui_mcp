@@ -11,11 +11,14 @@
 |---|---|---|
 | MCP（Streamable HTTP，stateless） | `http://<host>:<port>/mcp/` | LLM/agent 工具调用（**默认入口，本指南主体**） |
 | REST WebAPI | `http://<host>:<port>/api/*` | **只留给有特殊用途的用户编程使用**（curl/脚本/前端集成），普通调用方（尤其 LLM agent）一律走 MCP |
-| 产物下载 | `http://<host>:<port>/files/*` | 下载 `output/` 目录产物（带认证） |
+| 产物下载 | `http://<host>:<port>/files/*` | 下载 `output/` 目录产物（**免认证**；文件名含随机任务前缀，实际不可猜测） |
 | 服务根 | `http://<host>:<port>/` | 返回端点清单（无认证） |
 
 后端代理一个或多个 ComfyUI 实例（config 的 `comfyui_instances`，可配
-`workflow_rules` 工作流匹配规则）。**`comfyui_submit_task` 与 `comfyui_upload_file`
+`workflow_rules` 工作流匹配规则）。**工作流对外可用性由顶层 `allowed_workflows`
+全局白名单控制（fail-closed：为空/缺省 = 全不放行，`workflows/` 目录有文件 ≠
+可用）**，list/describe/submit 均受其门控（§3.5）。**`comfyui_submit_task`
+与 `comfyui_upload_file`
 的 `instance` 参数必填**——先调 `comfyui_describe_workflow` 取
 `routing.recommended_instance`（符合要求 ∩ 排队最少），upload/submit 串同一个实例
 （媒体文件实例局部，实例间不通用）；`describe_workflow` 的 `instance` 可选
@@ -30,6 +33,8 @@
 
 - 请求头：`Authorization: Bearer <token>`（MCP 与 REST 通用）。
 - 两个 token 都没配 → 无认证模式（仅允许本机调试）。
+- `/files/*` **不参与 Bearer 认证**（P5.20）：产物匿名可下载，安全边界是随机
+  文件名（实例名+工作流+任务前缀，不可猜测）；`/mcp/` 与 `/api/*` 仍需 token。
 - MCP 另有 **Host 白名单**（`server.mcp_allowed_hosts`）：非白名单地址连 `/mcp/`
   直接 421（DNS rebinding 防护）；公网访问需管理员把 `<IP>:*` 加入白名单。
 
@@ -39,10 +44,10 @@
 |---|---|---|
 | `comfyui_user_guide` | 返回本指南（Markdown） | 读 |
 | `comfyui_status` | 各实例连接/登录状态、队列负载、GPU 显存 | 读 |
-| `comfyui_list_workflows` | 列出 `workflows/` 可用工作流 + .md 摘要 | 读 |
+| `comfyui_list_workflows` | 列出**白名单内**（config `allowed_workflows`）可用工作流 + .md 摘要 + 每项 `instances`（实例规则放行的实例名，可直接据此选实例） | 读 |
 | `comfyui_describe_workflow(name, instance?)` | 工作流输入参数/输出节点/拓扑 + `health`（executable/缺节点/缺模型）+ **`routing`（推荐实例 = 符合要求 ∩ 排队最少，见 §3.5）** + `stats`（本进程成败统计，调用前避坑） | 读 |
 | `comfyui_submit_task(instance, ...)` | **唯一执行入口**：提交工作流，立即返回 `task_id`；**`instance` 必填**（取 describe 的 `routing.recommended_instance`；点名实例不匹配其规则→立即硬拒）；可选 `timeout_s`，默认 3600，含排队 | 写 |
-| `comfyui_task_status(task_id)` | 节点级进度轮询；completed 后返回 `outputs`（本服务机上的产物绝对路径）与 `text_outputs` | 读 |
+| `comfyui_task_status(task_id)` | 节点级进度轮询；completed 后返回 `outputs`（本服务机上的产物绝对路径）+ **`outputs_urls`（产物公网下载直链，GET 即下、免认证）** 与 `text_outputs` | 读 |
 | `comfyui_cancel_task(task_id)` | 取消：排队中=删远端队列，执行中=精准 `/interrupt`（不误伤共享实例他人任务） | 写 |
 | `comfyui_upload_file(instance, ...)` | 上传素材到 ComfyUI，返回 `name`（供工作流媒体参数引用）；**`instance` 必填，且必须与 submit 同一实例** | 写 |
 
@@ -56,7 +61,8 @@ comfyui_describe_workflow(name)     # 看 inputs 参数定义 + health 是否 ex
 comfyui_upload_file(instance, ...)  # 仅媒体输入工作流需要（见 3.2；instance=推荐值）
 comfyui_submit_task(instance, workflow_name, params)  → task_id
 comfyui_task_status(task_id)        # 按 3.3 的间隔轮询至 status=completed
-                                    # completed：outputs = 产物本地路径
+                                    # completed：outputs_urls = 产物公网下载直链
+                                    # （GET 即下载、免认证；见 3.4）
 ```
 
 - `submit_task` 的 `instance` **必填**：用上面 describe 返回的
@@ -102,11 +108,18 @@ comfyui_submit_task(params={"INPUT_IMAGE_FILE": "xxx.png", ...})
 
 ### 3.4 产物获取
 
-- `task_status` completed 时 `outputs` 为**本服务机**上 `output/` 的绝对路径
-  （带实例名+工作流前缀，如 `newgoai_qwen3_tts_clone_..._00002_.mp3`）；
-  MCP 客户端在服务器上可直接读，跨机器用 `scp` 或 REST `/files` 下载。
+- `task_status` completed 时返回两组路径：
+  - `outputs`：**本服务机**上 `output/` 的绝对路径（带实例名+工作流+任务前缀，
+    如 `mifengzhaopu_vibevoice_tts_clone_8f47e257_01_vibevoice_00001.mp3`）；
+    MCP 客户端与服务机同机时可直接读；
+  - **`outputs_urls`：产物公网下载直链**（`http://<host>:<port>/files/<文件名>`，
+    GET 即下载、免认证）——**跨机器调用者一律用这些链接取产物**
+    （浏览器/curl/程序请求均可，无需 scp、无需 token）。
+- 服务未配置 `server.public_base_url` 时不返回 `outputs_urls`（此时自行用
+  你连接服务的 `host:port` 拼 `/files/<outputs 里的文件名>`，同样免认证）。
 - 任务表保留 24h / 最多 200 条（终态裁剪）；`output/` 文件保留 7 天。
-  被裁剪的任务其产物仍在 `output/`，可经 `/files` 下载。
+  被裁剪的任务无法再经 task_status 取链接，但已取得的 `/files` 链接在
+  产物保留期内仍有效。
 
 ### 3.5 路由语义（多实例：选哪个、为什么、怎么拒）
 
@@ -123,14 +136,23 @@ submit/upload 的 `instance` 必填）：
 - **`candidates[]`** 每个实例一条：`supported`（规则放行）/ `excluded_reason`
   （被排除原因：规则 or 不可达）/ `queued` / `running` / `health`（参考）/
   `score`（参与打分才有值）/ `as_of`（探测时间）。
-- **`workflow_rules` 表达（config 侧，管理员配置）**：
+- **`allowed_workflows` 全局白名单（config 顶层，P5.19；管理员配置）**：
+  服务对外暴露哪些工作流的**总闸**——`list_workflows` 只返回白名单内的
+  （每项附 `instances` 标注），`describe_workflow` / `submit_task` 点名白名单
+  外 → **立即报错**（"未通过全局白名单"，不建任务）。**fail-closed：为空/
+  缺省 = 全不放行**（与实例规则相反：实例 rules 缺省 = 全支持）。条目支持
+  通配符 `* ? [seq]`（大小写敏感，与实例规则一致）。
+- **`workflow_rules` 表达（config 侧，管理员配置；实例级）**：
   - `only: [...]`（只能）：白名单，非空时不命中 = 该实例不支持；
   - `exclude: [...]`（排除）：黑名单，命中 = 不支持；
   - 条目支持通配符 `* ? [seq]`（对工作流名，不含 .json，大小写敏感，
     如 `qwen_image_edit_*`）；**评估顺序固定 exclude → only → 都空 = 全支持**。
-- **硬拒**：`submit_task` 点名的 `instance` 不匹配其 `workflow_rules` 时
-  **立即报错**（"实例 X 不支持工作流 Y：…"），不排队、不建任务；
-  `prompt_json` 内联执行无工作流名，不受实例规则限制（硬件匹配调用方负责）。
+  两层语义：全局白名单 = 暴露面（目录有 ≠ 可用）；实例规则 = 硬件能力。
+- **硬拒**：`submit_task` 的工作流不在全局白名单、或点名的 `instance` 不匹配
+  其 `workflow_rules` 时均**立即报错**（"未通过全局白名单：…" /
+  "实例 X 不支持工作流 Y：…"），不排队、不建任务；
+  `prompt_json` 内联执行无工作流名，不受白名单与实例规则限制（硬件匹配
+  调用方负责）。
 - **health 是参考不是门**：`candidates[].health`（缺节点/缺模型）只提示
   "去了可能跑不动"，不影响 `recommended_instance`（门要是动态的，推荐就
   不可预测）；点名执行前可先 `describe_workflow(name, instance=点名值)`
@@ -143,18 +165,19 @@ submit/upload 的 `instance` 必填）：
 > **一律使用 MCP 工具**（§3），功能等价且语义更完整（health/stats/指南/
 > 错误提示）。本节仅为有特殊用途的编程用户提供端点参考。
 
-Base = `http://<host>:<port>`，认证同 §2（MCP 与 REST 同一套 Bearer）。
+Base = `http://<host>:<port>`，认证同 §2（MCP 与 REST 同一套 Bearer；
+`/files/*` 例外：免认证）。
 
 | 方法 | 路径 | 对应 MCP 工具 | 说明 |
 |---|---|---|---|
 | GET | `/api/status` | `comfyui_status` | 各实例状态 |
-| GET | `/api/workflows` | `comfyui_list_workflows` | 工作流列表 + 摘要 |
-| GET | `/api/workflows/{name}?instance=` | `comfyui_describe_workflow` | 参数解析 + health + **routing（同 MCP）** + stats |
-| POST | `/api/tasks` | `comfyui_submit_task` | **唯一执行入口**，202 返回 `{"task_id": ...}`；body：`{workflow_name?, prompt_json?, params?, instance（必填）, timeout_s?}`；缺/空 instance 或规则不匹配 → 400 |
+| GET | `/api/workflows` | `comfyui_list_workflows` | **白名单内**工作流列表 + 摘要 + `instances` 标注（同 MCP） |
+| GET | `/api/workflows/{name}?instance=` | `comfyui_describe_workflow` | 参数解析 + health + **routing（同 MCP）** + stats；白名单外 → 404 |
+| POST | `/api/tasks` | `comfyui_submit_task` | **唯一执行入口**，202 返回 `{"task_id": ...}`；body：`{workflow_name?, prompt_json?, params?, instance（必填）, timeout_s?}`；缺/空 instance、不在全局白名单或实例规则不匹配 → 400 |
 | GET | `/api/tasks/{task_id}` | `comfyui_task_status` | 任务进度（字段与 MCP 相同） |
 | POST | `/api/tasks/{task_id}/cancel` | `comfyui_cancel_task` | 取消 |
 | POST | `/api/upload?file_type=&instance=` | `comfyui_upload_file` | multipart 上传（`file` 字段），返回 `name`；**`instance` 查询参数必填**（缺 → 400） |
-| GET | `/files/{path}` | —（MCP 无对应工具） | 下载 `output/` 产物（含路径穿越防护） |
+| GET | `/files/{path}` | —（MCP 无对应工具；`task_status` 返回的 `outputs_urls` 即指向本端点的直链） | 下载 `output/` 产物（含路径穿越防护，**免认证**） |
 
 ### curl 示例
 
@@ -185,9 +208,9 @@ curl -X POST -H "Authorization: Bearer $TOK" $BASE/api/tasks/<task_id>/cancel
 curl -H "Authorization: Bearer $TOK" -F "file=@ref.png" \
   "$BASE/api/upload?file_type=input&instance=newgoai"    # → {"name":"...png"}
 
-# 下载产物
-curl -H "Authorization: Bearer $TOK" -o out.mp3 \
-  "$BASE/files/newgoai_qwen3_tts_clone_xxx_00002_.mp3"
+# 下载产物（免认证；文件名来自 task_status 的 outputs / outputs_urls）
+curl -o out.mp3 \
+  "$BASE/files/mifengzhaopu_vibevoice_tts_clone_8f47e257_01_vibevoice_00001.mp3"
 ```
 
 ## 5. 错误码与排障
@@ -199,6 +222,7 @@ curl -H "Authorization: Bearer $TOK" -o out.mp3 \
 | `403` | 用了 `query_token` 调执行类工具/写路径 → 换 `command_token` |
 | `404 任务不存在` | task_id 写错，或任务表已被 24h/200 条裁剪（产物仍可经 `/files` 拿） |
 | `400 必须提供 workflow_name 或 prompt_json` | submit 两个工作流来源都没给 |
+| `未通过全局白名单`（submit/describe 报错，REST 为 400/404） | 工作流不在 config 顶层 `allowed_workflows`（**为空/缺省 = 全不放行**）→ 管理员把工作流名加入白名单并重启服务 |
 | `400 / 报错 "instance 必填"` | submit/upload 没给 instance（或给了空串）→ 先 `describe_workflow` 取 `routing.recommended_instance` |
 | `400 / 报错 "实例 X 不支持工作流 Y"` | 点名的 instance 不匹配其 `workflow_rules`（规则硬拒，零成本）→ 换 `routing.candidates` 中 `supported=true` 的实例 |
 | `routing.recommended_instance: null` | 全实例不可达或被规则排除 → 看 `candidates[].excluded_reason`；实例侧修网络/登录或找管理员调 `workflow_rules` |
@@ -216,4 +240,4 @@ curl -H "Authorization: Bearer $TOK" -o out.mp3 \
    看 `routing.candidates` 的 `supported` / `health`。
 4. 轮询间隔按 §3.3；不要在同一轮对话里连发多次 task_status。
 5. 大文件（>3MB）跨机器传输优先 scp/共享盘，不走 b64 参数。
-6. 全部工作流清单与中文摘要：`comfyui_list_workflows`（每个工作流另有 .md 文档）。
+6. 白名单内工作流清单与中文摘要：`comfyui_list_workflows`（每个工作流另有 .md 文档；清单外的工作流一律不可提交——目录有文件 ≠ 可用）。

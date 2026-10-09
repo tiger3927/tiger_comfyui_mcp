@@ -54,6 +54,9 @@ class RoutingConfig(BaseModel):
 class ServerConfig(BaseModel):
     host: str = "0.0.0.0"
     port: int = 18800
+    # P5.20：task_status 返回 outputs_urls（/files/ 公网下载直链）用的对外基址。
+    # 形如 "http://119.84.39.2:18503"；留空 = 不返回 outputs_urls。
+    public_base_url: str = ""
     # MCP /mcp/ 的 Host/Origin 白名单（mcp 2.x DNS rebinding 防护，未配置=SDK 默认仅 localhost，
     # 非本机 Host 连 /mcp/ 返回 421）。支持 "host:*" 通配端口，如 "119.84.39.2:*"
     mcp_allowed_hosts: list[str] = []
@@ -65,6 +68,11 @@ class ComfyUIConfig(BaseModel):
 
     comfyui_instances: list[ComfyUIInstanceConfig]
     default_instance: str
+    # P5.19 全局工作流白名单（fail-closed：空/缺省 = 全不放行——workflows/ 目录
+    # 有文件 ≠ 对外可用）。条目支持 fnmatch 通配符（大小写敏感，与实例规则一致）。
+    # 作用面：list_workflows 清单过滤 / describe 与 submit 硬拒 / route 候选排除；
+    # 内联 prompt_json（无名字）不受此门。
+    allowed_workflows: list[str] = []
     routing: RoutingConfig = Field(default_factory=RoutingConfig)
     server: ServerConfig = Field(default_factory=ServerConfig)
     command_token: str = ""

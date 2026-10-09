@@ -17,9 +17,8 @@ import functools
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from core.manager import ComfyUIError, ComfyUIManager
+from core.manager import ComfyUIError, ComfyUIManager, workflow_in_whitelist
 from core.workflow import (
-    list_workflow_files,
     load_named_workflow,
     parse_workflow_params,
 )
@@ -136,8 +135,12 @@ def build_mcp_server(mgr: ComfyUIManager) -> MCPServer:
 
     @srv.tool()
     async def comfyui_list_workflows() -> dict:
-        """列出 workflows/ 目录可用工作流及 .md 摘要。"""
-        return {"workflows": list_workflow_files(mgr.workflows_dir)}
+        """列出可用工作流及 .md 摘要。
+
+        P5.19：仅返回 config.allowed_workflows 白名单内的工作流（fail-closed：
+        白名单为空 = 全不放行；目录有文件 ≠ 可用）。每项附 instances=实例规则
+        放行的实例名（静态，不含可达性），可据此直接选实例。"""
+        return {"workflows": mgr.list_workflows_gated()}
 
     @srv.tool()
     @mcp_tool_guard
@@ -183,6 +186,10 @@ def build_mcp_server(mgr: ComfyUIManager) -> MCPServer:
                           recent_failures: [{error, count, last_at}, ...]}   # 内存统计，避坑
             }
         """
+        ok_wl, reason_wl = workflow_in_whitelist(
+            mgr.config.allowed_workflows, name)
+        if not ok_wl:
+            raise ComfyUIError(f"工作流 {name!r} 未通过全局白名单：{reason_wl}")
         wf = load_named_workflow(mgr.workflows_dir, name)
         params = parse_workflow_params(wf)
         nodes = {nid: {"class_type": (n or {}).get("class_type", ""),
@@ -239,13 +246,18 @@ def build_mcp_server(mgr: ComfyUIManager) -> MCPServer:
     async def comfyui_task_status(task_id: str) -> dict:
         """查任务进度（节点级）。
 
+        completed 后返回：outputs（本服务机上产物绝对路径，MCP 客户端与
+        服务机同机时可直接读）、**outputs_urls（产物公网下载直链：
+        http://<host>:<port>/files/<文件名>，GET 即下载、无需任何认证——
+        跨机器调用者一律用这些链接取产物）**、text_outputs。
+
         Args:
             task_id: comfyui_submit_task 返回的任务 ID
         """
-        record = mgr.tasks.get(task_id)
-        if record is None:
+        view = mgr.task_view(task_id)
+        if view is None:
             raise ComfyUIError(f"任务不存在：{task_id}")
-        return record.to_dict()
+        return view
 
     @srv.tool()
     async def comfyui_cancel_task(task_id: str) -> dict:

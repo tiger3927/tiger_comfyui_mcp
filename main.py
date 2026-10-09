@@ -182,7 +182,9 @@ def build_app(config_path: Path | None = None) -> FastAPI:
         """两级 Bearer：command_token 全权限；query_token 只读（写类工具/路径拒绝）。"""
 
         async def dispatch(self, request: Request, call_next):
-            if not request.url.path.startswith(("/mcp", "/api", "/files")):
+            # P5.20：/files/ 匿名下载（文件名含随机任务前缀，实际不可猜测）；
+            # 外部调用者经 task_status 的 outputs_urls 直链取产物，无需 Bearer
+            if not request.url.path.startswith(("/mcp", "/api")):
                 return await call_next(request)
             if auth_enabled:
                 auth = request.headers.get("Authorization", "")

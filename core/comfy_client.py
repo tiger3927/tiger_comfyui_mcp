@@ -348,7 +348,12 @@ class ComfyUIClient:
             async with session.post(url, data=data) as resp:
                 if resp.status == 200:
                     result = await resp.json()
-                    logger.info("[%s] 上传成功：%s", self.instance.name, result.get("name"))
+                    # 写操作使缓存失效：新上传媒体改变该实例 LoadImage COMBO 列表，
+                    # 否则"上传→立即执行"的预检会用旧列表误报缺模型（5 分钟窗口内）
+                    self._object_info = None
+                    self._object_info_ts = 0.0
+                    logger.info("[%s] 上传成功：%s（object_info 缓存已失效）",
+                                self.instance.name, result.get("name"))
                     return result
                 logger.error("[%s] 上传失败 %s", self.instance.name, resp.status)
                 return None

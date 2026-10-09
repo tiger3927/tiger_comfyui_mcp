@@ -11,7 +11,7 @@
 - INPUT_PROMPT_TEXT   提示词
 - INPUT_WIDTH_VALUE   宽度
 - INPUT_HEIGHT_VALUE  高度
-- INPUT_FPS_VALUE  帧率，默认16
+- INPUT_FPS_VALUE  帧率，默认24
 - INPUT_SECONDS_VALUE       视频时长秒数，应小于低于声音长度
 - INPUT_AUDIO_FILE   声音文件名
 - INPUT_IMAGE_FILE   图像文件名

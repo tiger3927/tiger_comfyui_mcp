@@ -1,0 +1,325 @@
+{
+  "2": {
+    "inputs": {
+      "prompt": [
+        "23",
+        0
+      ],
+      "preset": "Qwen-Image 2.1 PE (i2i)",
+      "preset.max_length": 8192,
+      "preset.temperature": 1,
+      "preset.top_k": 20,
+      "preset.top_p": 0.95,
+      "preset.min_p": 0,
+      "preset.repetition_penalty": 1,
+      "preset.presence_penalty": 0,
+      "preset.thinking": true,
+      "seed": 186994430569163,
+      "mtp": "auto",
+      "clip": [
+        "22",
+        0
+      ],
+      "images.image_1": [
+        "12",
+        0
+      ],
+      "images.image_2": [
+        "13",
+        0
+      ],
+      "images.image_3": [
+        "27",
+        0
+      ],
+      "images.image_4": [
+        "28",
+        0
+      ],
+      "images.image_5": [
+        "38",
+        0
+      ]
+    },
+    "class_type": "TextGenerateQwen35MTP",
+    "_meta": {
+      "title": "Qwen-Image 2.1 Prompt Enhancer (MTP)"
+    }
+  },
+  "3": {
+    "inputs": {
+      "unet_name": "qwen_image_2.1_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "UNet加载器"
+    }
+  },
+  "4": {
+    "inputs": {
+      "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "加载CLIP"
+    }
+  },
+  "5": {
+    "inputs": {
+      "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "加载VAE"
+    }
+  },
+  "7": {
+    "inputs": {
+      "seed": 880703448599808,
+      "steps": 25,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "11",
+        0
+      ],
+      "positive": [
+        "18",
+        0
+      ],
+      "negative": [
+        "18",
+        1
+      ],
+      "latent_image": [
+        "18",
+        2
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "K采样器"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "7",
+        0
+      ],
+      "vae": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "10": {
+    "inputs": {
+      "source": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "Rewritten prompt"
+    }
+  },
+  "11": {
+    "inputs": {
+      "device": "auto",
+      "dtype": "default",
+      "model": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "QwenImage21Cache",
+    "_meta": {
+      "title": "Qwen Image 2.1 缓存"
+    }
+  },
+  "12": {
+    "inputs": {
+      "image": "人物脸部特写制作 (17).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUT_IMAGE_1_FILE"
+    }
+  },
+  "13": {
+    "inputs": {
+      "image": "人物脸部特写制作 (17).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUT_IMAGE_2_FILE"
+    }
+  },
+  "14": {
+    "inputs": {
+      "source": [
+        "2",
+        4
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "ratio_follow"
+    }
+  },
+  "15": {
+    "inputs": {
+      "source": [
+        "2",
+        3
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "wh_ratio"
+    }
+  },
+  "17": {
+    "inputs": {
+      "filename_prefix": "Qwen_Image_21_Edit",
+      "format": "png",
+      "format.bit_depth": "8-bit",
+      "format.input_color_space": "sRGB",
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "SaveImageAdvanced",
+    "_meta": {
+      "title": "保存图像（高级）"
+    }
+  },
+  "18": {
+    "inputs": {
+      "prompt": [
+        "2",
+        0
+      ],
+      "negative_prompt": [
+        "26",
+        0
+      ],
+      "resolution": 1024,
+      "clip": [
+        "4",
+        0
+      ],
+      "images.image_1": [
+        "12",
+        0
+      ],
+      "images.image_2": [
+        "13",
+        0
+      ],
+      "images.image_3": [
+        "27",
+        0
+      ],
+      "images.image_4": [
+        "28",
+        0
+      ],
+      "images.image_5": [
+        "38",
+        0
+      ],
+      "vae": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "TextEncodeQwenImage21",
+    "_meta": {
+      "title": "文本编码 Qwen 图像 2.1"
+    }
+  },
+  "20": {
+    "inputs": {
+      "source": [
+        "2",
+        5
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "parse_ok"
+    }
+  },
+  "22": {
+    "inputs": {
+      "model": "i2i",
+      "backend": "llama.cpp",
+      "backend.quant": "Q8_0",
+      "backend.kv_cache": "f16",
+      "backend.vision_on_cpu": false,
+      "backend.unload_model": true
+    },
+    "class_type": "LoadQwenImage21PEMTP",
+    "_meta": {
+      "title": "Qwen-Image 2.1 PE Loader (MTP)"
+    }
+  },
+  "23": {
+    "inputs": {
+      "text": "人物打群架"
+    },
+    "class_type": "Text Multiline",
+    "_meta": {
+      "title": "INPUT_PROMPT_TEXT"
+    }
+  },
+  "26": {
+    "inputs": {
+      "text": ""
+    },
+    "class_type": "Text Multiline",
+    "_meta": {
+      "title": "INPUT_NEGATIVE_PROMPT_TEXT"
+    }
+  },
+  "27": {
+    "inputs": {
+      "image": "人物脸部特写制作 (17).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUT_IMAGE_3_FILE"
+    }
+  },
+  "28": {
+    "inputs": {
+      "image": "人物脸部特写制作 (17).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUT_IMAGE_4_FILE"
+    }
+  },
+  "38": {
+    "inputs": {
+      "image": "人物脸部特写制作 (17).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUT_IMAGE_5_FILE"
+    }
+  }
+}

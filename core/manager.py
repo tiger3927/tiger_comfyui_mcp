@@ -17,7 +17,11 @@ from typing import Any, Optional
 from core.comfy_client import ComfyUIClient, check_workflow
 from core.media import collect_outputs
 from core.tasks import TaskManager
-from core.workflow import inject_params, validate_api_workflow
+from core.workflow import (
+    inject_params,
+    list_workflow_files,
+    validate_api_workflow,
+)
 from core.ws_session import execute_prompt
 from schemas.models import ComfyUIConfig, ExecuteResult, TaskStatus
 
@@ -54,6 +58,20 @@ def instance_supports_workflow(rules, workflow_name: str) -> tuple[bool, str]:
     return True, ""
 
 
+def workflow_in_whitelist(entries: list[str], workflow_name: str) -> tuple[bool, str]:
+    """P5.19 顶层全局白名单（fail-closed）：空列表/缺省 = 全不放行。
+
+    与实例规则不同语义：实例 rules 缺省 = 全支持（硬件全承接）；全局白名单缺省
+    = 全不放行（目录有文件 ≠ 对外可用）。条目支持 fnmatch 通配符（大小写敏感）；
+    内联 prompt（无工作流名）不过此门。
+    """
+    if not entries:
+        return False, "全局白名单为空（allowed_workflows 未配置 = 全不放行）"
+    if any(fnmatch.fnmatchcase(workflow_name, p) for p in entries):
+        return True, ""
+    return False, f"不命中全局白名单 {list(entries)}"
+
+
 class ComfyUIManager:
     def __init__(self, config_path: str | Path = "config.json"):
         p = Path(config_path)
@@ -84,6 +102,23 @@ class ComfyUIManager:
 
     def instance_names(self) -> list[str]:
         return [i.name for i in self.config.comfyui_instances]
+
+    def list_workflows_gated(self) -> list[dict]:
+        """P5.19：目录扫描 ∩ 顶层白名单（fail-closed）的对外清单（MCP/REST 同源）。
+
+        每项附 instances=[实例规则放行的实例名]（静态计算，不含可达性）。
+        """
+        out: list[dict] = []
+        for it in list_workflow_files(self.workflows_dir):
+            ok, _ = workflow_in_whitelist(self.config.allowed_workflows,
+                                          it["name"])
+            if not ok:
+                continue
+            it["instances"] = [i.name for i in self.config.comfyui_instances
+                               if instance_supports_workflow(
+                                   i.workflow_rules, it["name"])[0]]
+            out.append(it)
+        return out
 
     def client_for(self, name: Optional[str] = None) -> ComfyUIClient:
         name = name or self.config.default_instance
@@ -211,6 +246,26 @@ class ComfyUIManager:
             elapsed=elapsed,
         )
 
+    def task_view(self, task_id: str) -> Optional[dict]:
+        """P5.20：task_status 读取视图——records.to_dict() + outputs_urls。
+
+        outputs_urls 为 /files/ 公网下载直链（GET 即下，免认证，路径穿越由
+        files 端点防护）；config.server.public_base_url 未配置时省略该字段。
+        任务不存在返回 None。
+        """
+        record = self.tasks.get(task_id)
+        if record is None:
+            return None
+        view = record.to_dict()
+        base = self.config.server.public_base_url
+        if base:
+            import posixpath
+            view["outputs_urls"] = [
+                f"{base.rstrip('/')}/files/{posixpath.basename(p)}"
+                for p in view.get("outputs", [])
+            ]
+        return view
+
     async def workflow_health(self, wf: dict, workflow_name: str = "",
                               instance: Optional[str] = None) -> dict:
         """P5.8：工作流在指定实例上的健康检查（任何失败都降级，绝不抛）。
@@ -264,6 +319,13 @@ class ComfyUIManager:
                 "health": None, "score": None,
             }
             if workflow_name and workflow_name != "inline":
+                ok_wl, reason_wl = workflow_in_whitelist(
+                    self.config.allowed_workflows, workflow_name)
+                if not ok_wl:
+                    cand.update(supported=False,
+                                excluded_reason=f"全局白名单：{reason_wl}")
+                    candidates.append(cand)
+                    continue
                 ok, reason = instance_supports_workflow(
                     cfg.workflow_rules, workflow_name)
                 if not ok:
@@ -347,6 +409,11 @@ class ComfyUIManager:
         if inst is None:
             raise ComfyUIError(f"未知实例 {instance!r}，可用：{self.instance_names()}")
         if workflow_name and workflow_name != "inline":
+            ok_wl, reason_wl = workflow_in_whitelist(
+                self.config.allowed_workflows, workflow_name)
+            if not ok_wl:
+                raise ComfyUIError(
+                    f"工作流 {workflow_name!r} 未通过全局白名单：{reason_wl}")
             ok_rule, reason = instance_supports_workflow(
                 inst.workflow_rules, workflow_name)
             if not ok_rule:

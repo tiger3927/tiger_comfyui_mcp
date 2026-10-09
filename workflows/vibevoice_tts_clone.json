@@ -1,0 +1,75 @@
+{
+  "15": {
+    "inputs": {
+      "audio": ""
+    },
+    "class_type": "LoadAudio",
+    "_meta": {
+      "title": "INPUT_AUDIO_FILE"
+    }
+  },
+  "44": {
+    "inputs": {
+      "text": [
+        "45",
+        0
+      ],
+      "model": "VibeVoice-1.5B",
+      "attention_type": "auto",
+      "quantize_llm": "full precision",
+      "free_memory_after_generate": true,
+      "diffusion_steps": 20,
+      "seed": 42,
+      "cfg_scale": 3,
+      "use_sampling": true,
+      "temperature": [
+        "61",
+        0
+      ],
+      "top_p": 0.95,
+      "max_words_per_chunk": 250,
+      "voice_speed_factor": 1,
+      "voice_to_clone": [
+        "15",
+        0
+      ]
+    },
+    "class_type": "VibeVoiceSingleSpeakerNode",
+    "_meta": {
+      "title": "VibeVoice Single Speaker"
+    }
+  },
+  "45": {
+    "inputs": {
+      "text": ""
+    },
+    "class_type": "Text Multiline",
+    "_meta": {
+      "title": "INPUT_TALK_TEXT"
+    }
+  },
+  "61": {
+    "inputs": {
+      "value": 0.5
+    },
+    "class_type": "Float",
+    "_meta": {
+      "title": "INPUT_TEMPERATURE_VALUE"
+    }
+  },
+  "63": {
+    "inputs": {
+      "filename_prefix": "vibevoice",
+      "format": "mp3",
+      "format.quality": "V0",
+      "audio": [
+        "44",
+        0
+      ]
+    },
+    "class_type": "SaveAudioAdvanced",
+    "_meta": {
+      "title": "保存音频（高级）"
+    }
+  }
+}
