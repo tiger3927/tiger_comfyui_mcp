@@ -73,6 +73,12 @@ class ComfyUIConfig(BaseModel):
     # 作用面：list_workflows 清单过滤 / describe 与 submit 硬拒 / route 候选排除；
     # 内联 prompt_json（无名字）不受此门。
     allowed_workflows: list[str] = []
+    # P5.22 JSON 手术制度：工作流名（fnmatch 通配符）-> 制度名。
+    # image_edit（缺省）= 首图必传、每个数字家族至少 1 个（qwen_image_21_edit_10 类）；
+    # multi_ref（混合多参考）= 每个数字家族（IMAGE/VIDEO/AUDIO…）可为 0，提供则必须
+    # 从最小编号连续，INPUT_..._FILE_N_ADD 卫星节点随父文件节点级联摘除
+    # （video_minimax_h3_r2v 类）。未知制度名加载配置即报错（fail fast）。
+    workflow_prune_modes: dict[str, str] = {}
     routing: RoutingConfig = Field(default_factory=RoutingConfig)
     server: ServerConfig = Field(default_factory=ServerConfig)
     command_token: str = ""
@@ -85,6 +91,16 @@ class ComfyUIConfig(BaseModel):
     cleanup_interval_hours: float = 6.0    # 周期清理间隔（小时，≤0=仅启动跑一次）
     task_retention_hours: float = 24.0     # 终态任务保留时长（小时，≤0=不按时间裁剪）
     task_max_retained: int = 200           # 终态任务最大保留条数（≤0=不限；active 任务不受影响）
+
+    @field_validator("workflow_prune_modes")
+    @classmethod
+    def _check_prune_modes(cls, v: dict[str, str]) -> dict[str, str]:
+        allowed = {"image_edit", "multi_ref"}
+        for k, mode in v.items():
+            if mode not in allowed:
+                raise ValueError(
+                    f"workflow_prune_modes[{k!r}] 手术制度 {mode!r} 非法（可用：{sorted(allowed)}）")
+        return v
 
 
 class TaskStatus(str, enum.Enum):

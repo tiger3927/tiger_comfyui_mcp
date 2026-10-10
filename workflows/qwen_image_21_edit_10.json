@@ -14,7 +14,7 @@
       "preset.repetition_penalty": 1,
       "preset.presence_penalty": 0,
       "preset.thinking": true,
-      "seed": 186994430569163,
+      "seed": 42,
       "mtp": "auto",
       "clip": [
         "22",
@@ -30,6 +30,34 @@
       ],
       "images.image_3": [
         "27",
+        0
+      ],
+      "images.image_4": [
+        "28",
+        0
+      ],
+      "images.image_5": [
+        "38",
+        0
+      ],
+      "images.image_6": [
+        "39",
+        0
+      ],
+      "images.image_7": [
+        "40",
+        0
+      ],
+      "images.image_8": [
+        "43",
+        0
+      ],
+      "images.image_9": [
+        "44",
+        0
+      ],
+      "images.image_10": [
+        "45",
         0
       ]
     },
@@ -70,7 +98,7 @@
   },
   "7": {
     "inputs": {
-      "seed": 880703448599808,
+      "seed": 42,
       "steps": 25,
       "cfg": 1,
       "sampler_name": "euler",
@@ -225,6 +253,34 @@
         "27",
         0
       ],
+      "images.image_4": [
+        "28",
+        0
+      ],
+      "images.image_5": [
+        "38",
+        0
+      ],
+      "images.image_6": [
+        "39",
+        0
+      ],
+      "images.image_7": [
+        "40",
+        0
+      ],
+      "images.image_8": [
+        "43",
+        0
+      ],
+      "images.image_9": [
+        "44",
+        0
+      ],
+      "images.image_10": [
+        "45",
+        0
+      ],
       "vae": [
         "5",
         0
@@ -286,6 +342,69 @@
     "class_type": "LoadImage",
     "_meta": {
       "title": "INPUT_IMAGE_3_FILE"
+    }
+  },
+  "28": {
+    "inputs": {
+      "image": "人物脸部特写制作 (17).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUT_IMAGE_4_FILE"
+    }
+  },
+  "38": {
+    "inputs": {
+      "image": "人物脸部特写制作 (17).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUT_IMAGE_5_FILE"
+    }
+  },
+  "39": {
+    "inputs": {
+      "image": "人物脸部特写制作 (17).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUT_IMAGE_6_FILE"
+    }
+  },
+  "40": {
+    "inputs": {
+      "image": "人物脸部特写制作 (17).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUT_IMAGE_7_FILE"
+    }
+  },
+  "43": {
+    "inputs": {
+      "image": "人物脸部特写制作 (17).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUT_IMAGE_8_FILE"
+    }
+  },
+  "44": {
+    "inputs": {
+      "image": "人物脸部特写制作 (17).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUT_IMAGE_9_FILE"
+    }
+  },
+  "45": {
+    "inputs": {
+      "image": "人物脸部特写制作 (17).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUT_IMAGE_10_FILE"
     }
   }
 }

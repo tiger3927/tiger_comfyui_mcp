@@ -7,12 +7,12 @@
 - 无法带入克隆参考音
 
 ## 参数
-- INPUT_PROMPT_TEXT   提示词（Text Multiline 节点，默认"人物说"好想出去玩""）
-- INPUT_IMAGE_1_FILE   首帧图文件名（uploads）
-- INPUT_IMAGE_2_FILE   尾帧图文件名（uploads）
-- INPUT_WIDTH_VALUE / INPUT_HEIGHT_VALUE  输出宽高（默认 720×1280 竖版，nearest-exact 居中裁切，32 整除）
-- INPUT_SECONDS_VALUE   视频时长秒数（默认 5，**最长 20s**）
-- INPUT_SEED   随机种子（easy seed，默认 42）
+- INPUT_PROMPT_TEXT   必填，提示词（Text Multiline 节点，默认"人物说"好想出去玩""）
+- INPUT_IMAGE_FIRST_FILE   必填，首帧图文件名（uploads）
+- INPUT_IMAGE_LAST_FILE   必填，尾帧图文件名（uploads）
+- INPUT_WIDTH_VALUE / INPUT_HEIGHT_VALUE  选填，输出宽高（默认 720×1280 竖版，nearest-exact 居中裁切，32 整除）
+- INPUT_SECONDS_VALUE   必填，视频时长秒数（默认 5，**最长 20s**）
+- INPUT_SEED   选填，随机种子（easy seed，默认 42）
 
 ## 提示词规范（必须遵守）
 - **必须按 tiger_comfyui_director 技能的 minimax-h3-prompt-writing 子技能编写**（本工作流为 FL2VA 模式：描述首帧到尾帧之间的连续路径）

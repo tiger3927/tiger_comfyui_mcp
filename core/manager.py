@@ -20,6 +20,8 @@ from core.tasks import TaskManager
 from core.workflow import (
     inject_params,
     list_workflow_files,
+    prune_multi_ref_file_nodes,
+    prune_unsupplied_file_nodes,
     validate_api_workflow,
 )
 from core.ws_session import execute_prompt
@@ -70,6 +72,18 @@ def workflow_in_whitelist(entries: list[str], workflow_name: str) -> tuple[bool,
     if any(fnmatch.fnmatchcase(workflow_name, p) for p in entries):
         return True, ""
     return False, f"不命中全局白名单 {list(entries)}"
+
+
+def resolve_prune_mode(modes: dict[str, str], workflow_name: str) -> str:
+    """P5.22 JSON 手术制度选择：工作流名（fnmatch 通配符）-> 制度名。
+
+    未配置 / 不命中 = image_edit（首图必传制度，存量行为）；multi_ref =
+    混合多参考制度（每数字家族可为 0、低位连续、_ADD 卫星级联）。
+    """
+    for pat, mode in (modes or {}).items():
+        if fnmatch.fnmatchcase(workflow_name, pat):
+            return mode
+    return "image_edit"
 
 
 class ComfyUIManager:
@@ -169,6 +183,20 @@ class ComfyUIManager:
             logger.info("注入参数: %s", applied)
         if unmatched:
             logger.warning("未匹配参数（忽略）: %s", unmatched)
+
+        # JSON 手术：未提供的 INPUT_...N_FILE 文件槽节点自动摘除（含清连线），
+        # 制度按 config.workflow_prune_modes 分流（默认 image_edit）；
+        # 护栏 fail-closed：必需单输入/缺号/全缺 -> 报错中止
+        try:
+            mode = resolve_prune_mode(self.config.workflow_prune_modes, workflow_name)
+            if mode == "multi_ref":
+                wf, pruned = prune_multi_ref_file_nodes(wf, params or {})
+            else:
+                wf, pruned = prune_unsupplied_file_nodes(wf, params or {})
+        except ValueError as e:
+            raise ComfyUIError(f"JSON 手术中止（{mode}）：{e}") from e
+        if pruned:
+            logger.info("手术摘除未提供文件节点: %s", pruned)
 
         t0 = time.time()
         async with client.make_session() as session:

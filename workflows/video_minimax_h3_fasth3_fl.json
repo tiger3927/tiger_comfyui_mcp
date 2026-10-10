@@ -22,7 +22,7 @@
     },
     "class_type": "LoadImage",
     "_meta": {
-      "title": "INPUT_IMAGE_1_FILE"
+      "title": "INPUT_IMAGE_FIRST_FILE"
     }
   },
   "144": {
@@ -75,7 +75,7 @@
     },
     "class_type": "LoadImage",
     "_meta": {
-      "title": "INPUT_IMAGE_2_FILE"
+      "title": "INPUT_IMAGE_LAST_FILE"
     }
   },
   "148": {
