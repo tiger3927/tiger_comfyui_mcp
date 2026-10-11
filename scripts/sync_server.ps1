@@ -1,4 +1,4 @@
-# sync_server.ps1：把门户相关改动增量 scp 到部署服务器（本机 Windows 中转）。
+﻿# sync_server.ps1：把门户相关改动增量 scp 到部署服务器（本机 Windows 中转）。
 # 约束（记忆）：服务器之间不互连，跨机搬运一律经本机；这里只做 本机 → 大牛。
 #
 # 用法：
@@ -32,21 +32,21 @@ $files = @(
 foreach ($f in $files) {
   $local = Join-Path $LocalBase $f
   if (-not (Test-Path $local)) { Write-Warning "缺失本地文件 $f，跳过"; continue }
-  $remote = "$RemoteBase/$($f -replace '\\','/')"
-  $remoteDir = Split-Path $remote -Parent
+  $remotePath = "$RemoteBase/$($f -replace '\\','/')"
+  $remoteDir = Split-Path $remotePath -Parent
   ssh -p $RemotePort $Remote "mkdir -p '$remoteDir'" | Out-Null
-  Write-Host "scp $f → $Remote:$remote"
-  scp -P $RemotePort $local "$Remote:$remote"
+  Write-Host "scp $f → ${Remote}:${remotePath}"
+  scp -P $RemotePort $local "${Remote}:${remotePath}"
 }
 
 # workflows 整目录（*.md 摘要 + *.json 工作流）
 $localWf = Join-Path $LocalBase "workflows"
 if (Test-Path $localWf) {
-  Write-Host "scp workflows\ → $Remote:$RemoteBase/workflows（整目录）"
-  scp -P $RemotePort -r $localWf "$Remote:$RemoteBase/"
+  Write-Host "scp workflows\ → ${Remote}:${RemoteBase}/workflows（整目录）"
+  scp -P $RemotePort -r $localWf "${Remote}:${RemoteBase}/"
 } else {
   Write-Warning "本地 workflows 目录缺失，跳过"
 }
 
 Write-Host ""
-Write-Host "同步完成 → $Remote:$RemoteBase（共 $($files.Count) 个文件）"
+Write-Host "同步完成 → ${Remote}:${RemoteBase}（共 $($files.Count) 个文件）"
