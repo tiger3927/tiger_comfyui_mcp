@@ -8,8 +8,8 @@
 - 可以指定给视频画面中的谁配音,以及有什么行为描述
 
 ## 参数
-- INPUT_AUDIO_FILE   声音文件名
-- INPUT_VIDEO_FILE   视频文件名
+- INPUT_AUDIO_FILE   声音文件名（先经 REST 上传再注入：`comfyui_request_upload_ticket` 取票据 → curl 直传）
+- INPUT_VIDEO_FILE   视频文件名（同上）
 - INPUT_PROMPT_TEXT   提示词
 - INPUT_WIDTH_VALUE   宽度
 - INPUT_HEIGHT_VALUE  高度

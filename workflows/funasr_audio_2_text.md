@@ -5,13 +5,13 @@
 
 ## 介绍
 
-- 输入音频文件（先调 `comfyui_upload_file` 上传取文件名），进行语音识别
+- 输入音频文件（先经 REST 上传取文件名：`comfyui_request_upload_ticket` 取票据 → curl 直传），进行语音识别
 - 使用阿里 FunASR 模型进行语音识别，支持时间戳
 - 通过 WebSocket 监听节点输出获取识别结果（非文件下载方式）
 - 同时输出纯文本和带时间戳的 JSON 格式结果
 
 ## 参数
-- INPUT_AUDIO_FILE   音频文件名（必填，先调 `comfyui_upload_file` 上传取文件名）
+- INPUT_AUDIO_FILE   音频文件名（必填，先经 REST 上传取文件名：`comfyui_request_upload_ticket` 取票据 → curl 直传）
 
 ## 预计时间
 - 10-30秒（取决于音频长度）

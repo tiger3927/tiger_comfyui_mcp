@@ -23,7 +23,8 @@ $files = @(
   "portal\routers\tokens.py", "portal\routers\tasks.py",
   "portal\routers\recharges.py", "portal\routers\pay.py", "portal\routers\admin.py",
   "core\tasks.py", "core\manager.py",
-  "server\rest_api.py", "server\mcp_tools.py",
+  "core\tickets.py",
+  "server\rest_api.py", "server\mcp_tools.py", "server\user-guide.md",
   "scripts\reconcile.py", "scripts\seed_admin.py",
   "config.example.json", ".gitignore"
 )
@@ -36,6 +37,15 @@ foreach ($f in $files) {
   ssh -p $RemotePort $Remote "mkdir -p '$remoteDir'" | Out-Null
   Write-Host "scp $f → $Remote:$remote"
   scp -P $RemotePort $local "$Remote:$remote"
+}
+
+# workflows 整目录（*.md 摘要 + *.json 工作流）
+$localWf = Join-Path $LocalBase "workflows"
+if (Test-Path $localWf) {
+  Write-Host "scp workflows\ → $Remote:$RemoteBase/workflows（整目录）"
+  scp -P $RemotePort -r $localWf "$Remote:$RemoteBase/"
+} else {
+  Write-Warning "本地 workflows 目录缺失，跳过"
 }
 
 Write-Host ""

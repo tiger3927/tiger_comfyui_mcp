@@ -10,7 +10,7 @@
 ## 参数
 - INPUT_PROMPT_TEXT   编辑提示词
 - INPUT_NEGATIVE_PROMPT_TEXT   负面提示词（默认空）
-- INPUT_IMAGE_1_FILE   **必须**：参考图1文件名（先经 comfyui_upload_file 上传再注入；JSON 里的默认图名仅占位，不传则报错）
+- INPUT_IMAGE_1_FILE   **必须**：参考图1文件名（先经 REST 上传再注入：`comfyui_request_upload_ticket` 取票据 → curl 直传；JSON 里的默认图名仅占位，不传则报错）
 - INPUT_IMAGE_2_FILE   可选：参考图2文件名（同上）
 - INPUT_IMAGE_3_FILE   可选：参考图3文件名（同上）
 - INPUT_IMAGE_4_FILE   可选：参考图4文件名（同上）

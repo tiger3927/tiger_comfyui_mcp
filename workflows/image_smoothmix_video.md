@@ -12,7 +12,7 @@
 - INPUT_NEGATIVE_PROMPT_TEXT   负向提示词
 - INPUT_WIDTH_VALUE   宽度
 - INPUT_HEIGHT_VALUE  高度
-- INPUT_IMAGE_FILE   首帧图文件名
+- INPUT_IMAGE_FILE   首帧图文件名（先经 REST 上传再注入：`comfyui_request_upload_ticket` 取票据 → curl 直传）
 - INPUT_SECONDS_VALUE  视频长度秒数
 ## 预计时间
 - 2分钟(生成5秒视频)

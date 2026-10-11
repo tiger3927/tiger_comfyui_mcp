@@ -8,7 +8,7 @@
 - SeedVR2模型放大图像,尺寸乘以1.5放大
 
 ## 参数
-- INPUT_IMAGE_FILE   原图文件名
+- INPUT_IMAGE_FILE   原图文件名（先经 REST 上传再注入：`comfyui_request_upload_ticket` 取票据 → curl 直传）
 - INPUT_SDXL_BOOL_VALUE   打开SDXL皮肤头发强化
 ## 预计时间
 - 40秒

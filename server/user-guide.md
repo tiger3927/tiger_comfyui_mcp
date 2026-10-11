@@ -18,7 +18,7 @@
 `workflow_rules` 工作流匹配规则）。**工作流对外可用性由顶层 `allowed_workflows`
 全局白名单控制（fail-closed：为空/缺省 = 全不放行，`workflows/` 目录有文件 ≠
 可用）**，list/describe/submit 均受其门控（§3.5）。**`comfyui_submit_task`
-与 `comfyui_upload_file`
+与 `comfyui_request_upload_ticket`
 的 `instance` 参数必填**——先调 `comfyui_describe_workflow` 取
 `routing.recommended_instance`（符合要求 ∩ 排队最少），upload/submit 串同一个实例
 （媒体文件实例局部，实例间不通用）；`describe_workflow` 的 `instance` 可选
@@ -49,7 +49,7 @@
 | `comfyui_submit_task(instance, ...)` | **唯一执行入口**：提交工作流，立即返回 `task_id`；**`instance` 必填**（取 describe 的 `routing.recommended_instance`；点名实例不匹配其规则→立即硬拒）；可选 `timeout_s`，默认 3600，含排队 | 写 |
 | `comfyui_task_status(task_id)` | 节点级进度轮询；completed 后返回 `outputs`（本服务机上的产物绝对路径）+ **`outputs_urls`（产物公网下载直链，GET 即下、免认证）** 与 `text_outputs` | 读 |
 | `comfyui_cancel_task(task_id)` | 取消：排队中=删远端队列，执行中=精准 `/interrupt`（不误伤共享实例他人任务） | 写 |
-| `comfyui_upload_file(instance, ...)` | 上传素材到 ComfyUI，返回 `name`（供工作流媒体参数引用）；**`instance` 必填，且必须与 submit 同一实例** | 写 |
+| `comfyui_request_upload_ticket(instance, file_type?)` | 签发一次性媒体上传票据（短时效单次、绑定实例，返回含可直接执行的 curl 命令）→ `POST /api/upload` multipart 直传（文件字节走 HTTP 不进模型上下文）；MCP 层无上传工具 | 读（免 key） |
 
 ### 3.1 标准调用流程
 
@@ -58,7 +58,8 @@ comfyui_status                      # 确认实例 connected
 comfyui_list_workflows              # 找可用工作流
 comfyui_describe_workflow(name)     # 看 inputs 参数定义 + health 是否 executable
                                     # + 取 routing.recommended_instance（见 3.5）
-comfyui_upload_file(instance, ...)  # 仅媒体输入工作流需要（见 3.2；instance=推荐值）
+comfyui_request_upload_ticket(instance)   # 仅媒体输入工作流需要（见 3.2；instance=推荐值）
+                                          # → 本地执行返回的 curl 直传文件 → 用返回的 name 注入 params
 comfyui_submit_task(instance, workflow_name, params)  → task_id
 comfyui_task_status(task_id)        # 按 3.3 的间隔轮询至 status=completed
                                     # completed：outputs_urls = 产物公网下载直链
@@ -67,7 +68,7 @@ comfyui_task_status(task_id)        # 按 3.3 的间隔轮询至 status=complete
 
 - `submit_task` 的 `instance` **必填**：用上面 describe 返回的
   `routing.recommended_instance`（或 candidates 中你确认的实例）；
-  `upload_file` 的 `instance` 与其**同值**（媒体文件实例局部）。
+  `request_upload_ticket` 的 `instance` 与其**同值**（媒体文件实例局部）。
 - `submit_task` 的 `workflow_name`（workflows/ 下名称，不含 .json）与
   `prompt_json`（内联 API 格式 JSON 字符串）二选一；`params` 注入输入参数。
 - 参数名以 `describe_workflow` 返回的 `inputs[].title` 为准（如
@@ -76,31 +77,30 @@ comfyui_task_status(task_id)        # 按 3.3 的间隔轮询至 status=complete
 ### 3.2 媒体输入约定（重要）
 
 全部工作流的媒体参数都是**文件名**（`INPUT_*_FILE`：图片/音频/视频），
-不存在 base64/URL 媒体输入：
+不存在 base64/URL 媒体输入。**MCP 无上传工具**——上传唯一通道是
+REST `POST /api/upload` multipart 直传，配合 MCP 只读工具签发的
+**一次性上传票据**（短时效、单次有效、绑定 instance）：
 
 ```
-comfyui_upload_file(file_path=...)   # 或服务机上的素材
-  → { "name": "xxx.png", "type": "input" }
-comfyui_submit_task(params={"INPUT_IMAGE_FILE": "xxx.png", ...})
+comfyui_request_upload_ticket(instance)   # ① 取票据（返回含可直接复制的 curl 命令）
+# ② 本地执行 curl——文件字节走 HTTP，不进模型上下文：
+# curl -F "file=@<本地文件>" "$BASE/api/upload?file_type=input&instance=<实例>&ticket=<票据>"
+#   → { "name": "tmpxxxxxx.png", "subfolder": "", "type": "input" }
+comfyui_submit_task(instance, ..., params={"INPUT_IMAGE_FILE": "tmpxxxxxx.png", ...})
+                                          # ③ 用返回的 name 注入并提交（同一实例）
 ```
 
-- **上传与执行必须同一实例**（`name` 是 ComfyUI 端的文件名，实例间不通用）。
-
-三条通道按"素材在哪 + 体积"选，总原则：**能不过模型上下文就不过**——
-`file_b64` 的 base64 字符串以工具参数进入对话历史且永久驻留
-（体积 ×1.37，高熵文本约 1 token/3 字符），大文件一调用就占爆上下文。
-
-| 素材位置 | 通道 | 上下文成本 | 说明 |
-|---|---|---|---|
-| 服务机上 | MCP `file_path` | **零** | 后缀/落盘名原样保留（basename），最省心 |
-| 客户端本机，小文件（<3MB） | MCP `file_b64` | 文件×1.37 的 token，一次性 + 驻留历史 | 裸 base64 或 data-URI；音频/视频建议配 `filename` 指明后缀 |
-| 客户端本机，大文件 | **REST `POST /api/upload`**（§4，multipart） | **零**（字节走 HTTP） | `curl -F "file=@本地文件" "$BASE/api/upload?file_type=input&instance=..."`（command_token） |
-| 客户端本机，大文件且无命令执行能力 | scp/共享盘先搬上服务机 → `file_path` | 零 | 需人工/脚本介入 |
-
-- `file_b64` 与 REST 直传的**落盘名都是服务端随机 tmp 名**（`tmpXXXXXX.后缀`，
-  `filename` 参数只取后缀）——工作流参数必须引用**返回的 `name`**，不可预测。
-- 把调用方本机路径（`D:/...`、`C:/...`、`/Users/...`）传给 `file_path` 必然报
-  "上传失败：文件不存在"——服务机看不到调用方磁盘，这不是实例问题，换实例重试无用。
+- **上传与执行必须同一实例**（票据绑定 instance；`name` 是该实例 ComfyUI 端
+  的文件名，实例间不通用）。
+- 返回的 `name` 是**服务端随机 tmp 名**——必须引用返回值，不可预测。
+- 防护：单文件 ≤200MB（超限 413）；票据每 IP 签发限流；票据上传每 IP
+  每小时 30 次（429）。
+- 有门户 Bearer token 时可免票据直接 curl（同一端点，`Authorization: Bearer`）。
+- `comfyui_submit_task` 预检发现媒体文件缺失时，报错会**内嵌现成票据与
+  curl 命令**——照执行后用返回的 name 重新提交即可。
+- 历史：`comfyui_upload_file` 工具已移除——`file_b64` 会把文件内容以 base64
+  拉进对话上下文并永久驻留（体积 ×1.37），MB 级素材一调用即占爆上下文；
+  上传统一走 REST 直传后，"传本机路径给上传工具"这类错误也随之消失。
 
 ### 3.3 轮询间隔约定（写进 submit_task 返回 hint）
 
@@ -187,14 +187,14 @@ Base = `http://<host>:<port>`，认证同 §2（MCP 与 REST 同一套 Bearer；
 | POST | `/api/tasks` | `comfyui_submit_task` | **唯一执行入口**，202 返回 `{"task_id": ...}`；body：`{workflow_name?, prompt_json?, params?, instance（必填）, timeout_s?}`；缺/空 instance、不在全局白名单或实例规则不匹配 → 400 |
 | GET | `/api/tasks/{task_id}` | `comfyui_task_status` | 任务进度（字段与 MCP 相同） |
 | POST | `/api/tasks/{task_id}/cancel` | `comfyui_cancel_task` | 取消 |
-| POST | `/api/upload?file_type=&instance=` | `comfyui_upload_file` | multipart 上传（`file` 字段），返回 `name`；**`instance` 查询参数必填**（缺 → 400） |
+| POST | `/api/upload?file_type=&instance=&ticket=` | `comfyui_request_upload_ticket`（签发其 ticket） | multipart 上传（`file` 字段），返回 `name`；**`instance` 查询参数必填**（缺 → 400）；一次性票据（免 key）或 Bearer token（有门户凭证）二选一 |
 | GET | `/files/{path}` | —（MCP 无对应工具；`task_status` 返回的 `outputs_urls` 即指向本端点的直链） | 下载 `output/` 产物（含路径穿越防护，**免认证**） |
 
 ### curl 示例
 
 ```bash
 TOK=<command_token>
-BASE=http://119.84.39.2:18503
+BASE=<本服务地址>   # 实际值见指南末尾“7. 本部署地址与直连方式”（comfyui_user_guide 按 config 动态注入）
 
 # 实例状态
 curl -H "Authorization: Bearer $TOK" $BASE/api/status
@@ -216,8 +216,12 @@ curl -H "Authorization: Bearer $TOK" $BASE/api/tasks/<task_id>
 curl -X POST -H "Authorization: Bearer $TOK" $BASE/api/tasks/<task_id>/cancel
 
 # 上传素材（multipart；instance 必填，与 submit 同一实例）
+# 方式一：一次性票据（MCP comfyui_request_upload_ticket 签发，免 key agent 用这条）
+curl -F "file=@ref.png" \
+  "$BASE/api/upload?file_type=input&instance=newgoai&ticket=up_xxxxxxxx"   # → {"name":"...png"}
+# 方式二：门户 Bearer（有 token 时可免票据）
 curl -H "Authorization: Bearer $TOK" -F "file=@ref.png" \
-  "$BASE/api/upload?file_type=input&instance=newgoai"    # → {"name":"...png"}
+  "$BASE/api/upload?file_type=input&instance=newgoai"
 
 # 下载产物（免认证；文件名来自 task_status 的 outputs / outputs_urls）
 curl -o out.mp3 \
@@ -246,10 +250,12 @@ curl -o out.mp3 \
 1. 动手前先 `describe_workflow` 看 `inputs`、`health.executable` 与
    `routing.recommended_instance`，不要猜参数名、不要猜实例。
 2. 一个任务只 submit 一次；后续用 task_status 跟踪，需要放弃才 cancel。
-3. `upload_file` / `submit_task` 的 `instance` **必填且同值**（= recommended_instance；
-   媒体输入先 upload 再注入 `name`，不要把 base64 塞进 params）；点名换实例前先
-   看 `routing.candidates` 的 `supported` / `health`。
+3. `request_upload_ticket` / `submit_task` 的 `instance` **必填且同值**
+   （= recommended_instance；媒体输入走票据+REST 直传，用返回的 `name` 注入，
+   绝不把 base64/文件内容塞进任何参数）；点名换实例前先看
+   `routing.candidates` 的 `supported` / `health`。
 4. 轮询间隔按 §3.3；不要在同一轮对话里连发多次 task_status。
-5. 大文件跨机器传输优先 REST `POST /api/upload` 直传（multipart 字节流，零上下文），
-   其次 scp/共享盘搬上服务机走 `file_path`；不要走 b64 参数（进对话历史并驻留）。
+5. 媒体上传一律 REST `POST /api/upload` 直传（multipart 字节流，零上下文）：
+   `comfyui_request_upload_ticket` 取票据 → 本地 curl 直传 → 返回 `name` 注入。
+   MCP 无上传工具，`file_b64` 已移除（文件内容进对话历史会驻留，爆上下文）。
 6. 白名单内工作流清单与中文摘要：`comfyui_list_workflows`（每个工作流另有 .md 文档；清单外的工作流一律不可提交——目录有文件 ≠ 可用）。

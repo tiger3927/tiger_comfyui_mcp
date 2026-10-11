@@ -8,8 +8,8 @@
 - 传入角色带场景图、上一段视频，接力生成，5秒一段
 
 ## 参数
-- INPUT_IMAGE_FILE   角色带场景原图文件名（必须）
-- INPUT_LAST_VIDEO_FILE   上一段视频文件名
+- INPUT_IMAGE_FILE   角色带场景原图文件名（必须；先经 REST 上传再注入：`comfyui_request_upload_ticket` 取票据 → curl 直传）
+- INPUT_LAST_VIDEO_FILE   上一段视频文件名（同上）
 - INPUT_PROMPT_TEXT  提示词（必须）
 ## 预计时间
 - 3分钟(生成5秒视频)

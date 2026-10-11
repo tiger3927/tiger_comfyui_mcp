@@ -17,7 +17,7 @@
 - INPUT_SECONDS_VALUE   选填，视频时长秒数（默认 5）
 - INPUT_WIDTH_VALUE   选填，输出宽度（默认 720，32 取整）
 - INPUT_HEIGHT_VALUE   选填，输出高度（默认 1280，32 取整）
-- INPUT_IMAGE_1_FILE   选填：参考图1文件名（先经 comfyui_upload_file 上传再注入；JSON 里的默认图名仅占位）
+- INPUT_IMAGE_1_FILE   选填：参考图1文件名（先经 REST 上传再注入：`comfyui_request_upload_ticket` 取票据 → curl 直传；JSON 里的默认图名仅占位）
 - INPUT_IMAGE_2_FILE   选填：参考图2文件名（同上）
 - INPUT_IMAGE_3_FILE   选填：参考图3文件名（同上）
 - INPUT_IMAGE_4_FILE   选填：参考图4文件名（同上）

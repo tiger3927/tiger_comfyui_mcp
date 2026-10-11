@@ -8,8 +8,8 @@
 
 ## 参数
 - INPUT_PROMPT_TEXT   必填，提示词（Text Multiline 节点，默认"人物说"好想出去玩""）
-- INPUT_IMAGE_FIRST_FILE   必填，首帧图文件名（uploads）
-- INPUT_IMAGE_LAST_FILE   必填，尾帧图文件名（uploads）
+- INPUT_IMAGE_FIRST_FILE   必填，首帧图文件名（先经 REST 上传再注入：`comfyui_request_upload_ticket` 取票据 → curl 直传）
+- INPUT_IMAGE_LAST_FILE   必填，尾帧图文件名（同上）
 - INPUT_WIDTH_VALUE / INPUT_HEIGHT_VALUE  选填，输出宽高（默认 720×1280 竖版，nearest-exact 居中裁切，32 整除）
 - INPUT_SECONDS_VALUE   必填，视频时长秒数（默认 5，**最长 20s**）
 - INPUT_SEED   选填，随机种子（easy seed，默认 42）

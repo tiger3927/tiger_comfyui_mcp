@@ -7,7 +7,7 @@
 
 ## 参数
 - INPUT_SPEAK_TEXT  说话稿文字
-- INPUT_AUDIO_FILE   克隆参考音频文件名
+- INPUT_AUDIO_FILE   克隆参考音频文件名（先经 REST 上传再注入：`comfyui_request_upload_ticket` 取票据 → curl 直传）
 ## 预计时间
 - 30秒（生成10秒音频）
 ## 输出文件的前缀

@@ -42,10 +42,13 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 MCP_PUBLIC_METHODS = frozenset({
     "initialize", "notifications/initialized", "ping", "tools/list",
 })
-# MCP 无 key 可调的只读工具（不含用户数据 / 不计费 / 无副作用）
+# MCP 无 key 可调的只读工具（不含用户数据 / 不计费 / 无副作用）。
+# request_upload_ticket 仅写内存态短命票据（无持久副作用、不挂身份），
+# 是无 key agent 走 REST 上传的唯一桥梁，故纳入豁免。
 MCP_PUBLIC_TOOLS = frozenset({
     "comfyui_user_guide", "comfyui_list_workflows",
     "comfyui_status", "comfyui_describe_workflow",
+    "comfyui_request_upload_ticket",
 })
 
 
@@ -242,6 +245,11 @@ def build_app(config_path: Path | None = None) -> FastAPI:
                 if method == "tools/call" and \
                         (body.get("params") or {}).get("name", "") in MCP_PUBLIC_TOOLS:
                     return await call_next(request)  # 豁免：只读工具
+            if request.url.path == "/api/upload" and \
+                    (request.query_params.get("ticket") or "").strip():
+                # 票据上传通道：免 Bearer，端点内核验票据（短时效单次、绑定实例）。
+                # 无效票据在端点归 403，不在此处放行非票据请求。
+                return await call_next(request)
             auth = request.headers.get("Authorization", "")
             token = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else ""
             if not token:

@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import logging
+import tempfile
+import threading
+import time
 from pathlib import Path
 from typing import Any, Optional
 
@@ -16,6 +19,15 @@ from core.workflow import (
 )
 
 logger = logging.getLogger(__name__)
+
+# ── 媒体上传（唯一上传通道）防护 ──────────────────────────────────────
+# 单文件上限：H3 类视频参考可能较大，取 200MB（超过即 413，流式边收边判）
+MAX_UPLOAD_BYTES = 200 * 1024 * 1024
+# 票据上传的每 IP 限流（滑动窗口 1 小时；Bearer 通道不在此列，门户自有风控）
+_UPLOAD_WINDOW_S = 3600.0
+_UPLOAD_MAX_PER_IP = 30
+_ip_uploads: dict[str, list[float]] = {}
+_upload_lock = threading.Lock()
 
 
 class TaskRequest(BaseModel):
@@ -106,19 +118,52 @@ def build_router(mgr: ComfyUIManager) -> APIRouter:
         return {"ok": ok, "message": message}
 
     @r.post("/upload")
-    async def upload(file: UploadFile = File(...),
+    async def upload(request: Request,
+                     file: UploadFile = File(...),
                      file_type: str = Query("input"),
-                     instance: str = Query("")):
+                     instance: str = Query(""),
+                     ticket: str = Query("")):
+        """媒体上传唯一通道（MCP 层无上传工具，文件字节走 HTTP 不进模型上下文）。
+
+        鉴权二选一：
+        - Bearer（AuthMiddleware 已验）：门户用户通道
+        - ticket：一次性上传票据（MCP comfyui_request_upload_ticket 签发，
+          短时效单次、绑定 instance/file_type，权限仅限本次上传）
+        """
         # P5.13：instance 必填（与 submit 同一实例；取 describe 的
         # routing.recommended_instance）——参数错误归 400 而非 502
         if not instance:
             raise HTTPException(400, "instance 查询参数必填"
                                      "（与 submit 同一实例，取 describe 的 "
                                      "routing.recommended_instance）")
+        if ticket.strip():
+            ok, err = mgr.tickets.consume(ticket.strip(), instance, file_type)
+            if not ok:
+                raise HTTPException(403, f"上传票据校验失败：{err}")
+            ip = request.client.host if request.client else "-"
+            now = time.time()
+            with _upload_lock:
+                window = [t for t in _ip_uploads.get(ip, [])
+                          if now - t < _UPLOAD_WINDOW_S]
+                if len(window) >= _UPLOAD_MAX_PER_IP:
+                    raise HTTPException(
+                        429, f"上传过于频繁（每 IP 每 {_UPLOAD_WINDOW_S / 3600:.0f} "
+                             f"小时上限 {_UPLOAD_MAX_PER_IP} 次），请稍后再试")
+                window.append(now)
+                _ip_uploads[ip] = window
         suffix = Path(file.filename or "upload.png").suffix or ".png"
-        import tempfile
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            tmp.write(await file.read())
+            # 流式落盘 + 体积上限（不在内存里攒整个文件）
+            written = 0
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > MAX_UPLOAD_BYTES:
+                    raise HTTPException(
+                        413, f"文件超过单文件上限 {MAX_UPLOAD_BYTES // (1024 * 1024)}MB")
+                tmp.write(chunk)
             tmp_path = tmp.name
         try:
             result = await mgr.upload_image(instance, tmp_path,

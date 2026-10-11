@@ -1,14 +1,14 @@
 """MCP 工具注册（8 个）。只调 core/，不含业务逻辑。
 
+上传通道 REST 化：本层无上传工具——媒体文件一律用
+comfyui_request_upload_ticket 取一次性票据后 REST POST /api/upload
+multipart 直传（文件字节走 HTTP，不进模型上下文）。
 mcp 2.x：MCPServer + @srv.tool()（T0.3 实测，原 FastMCP 已改名）。
 """
 from __future__ import annotations
 
-import base64
-import binascii
 import json
 import logging
-import tempfile
 from pathlib import Path
 from typing import Any, Optional
 
@@ -24,62 +24,6 @@ from core.workflow import (
 )
 
 logger = logging.getLogger(__name__)
-
-# ----------------------------------------------------------------------
-# b64 上传载荷解包（P5.7）：filename 参数 > data-URI MIME > 前缀嗅探 > 默认 .png
-# ComfyUI /upload/image 按 multipart filename 原样落盘，扩展名由下游节点过滤
-# ----------------------------------------------------------------------
-_SNIFF_EXTS = (
-    ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tiff", ".tif",
-    ".mp3", ".wav", ".flac", ".m4a", ".ogg", ".opus", ".aac",
-    ".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v", ".wmv", ".mpg", ".mpeg",
-)
-_MIME_EXTS = {
-    # 图片
-    "image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp",
-    "image/gif": ".gif", "image/bmp": ".bmp", "image/tiff": ".tiff",
-    # 音频
-    "audio/wav": ".wav", "audio/mpeg": ".mp3", "audio/mp3": ".mp3",
-    "audio/mp4": ".m4a", "audio/x-m4a": ".m4a", "audio/ogg": ".ogg",
-    "audio/opus": ".opus", "audio/flac": ".flac", "audio/x-flac": ".flac",
-    "audio/aac": ".aac", "audio/x-aac": ".aac",
-    # 视频
-    "video/mp4": ".mp4", "video/webm": ".webm", "video/quicktime": ".mov",
-    "video/x-matroska": ".mkv", "video/x-msvideo": ".avi",
-    "video/x-ms-wmv": ".wmv", "video/mpeg": ".mpg", "video/x-m4v": ".m4v",
-}
-
-
-def _decode_b64_payload(raw: str) -> tuple[bytes, Optional[str]]:
-    """解包 b64 载荷：裸 base64 或 data-URI（data:<mime>;base64,...）。
-
-    返回 (解码字节, MIME)；裸 base64 时 MIME 为 None。
-    """
-    raw = raw.strip()
-    if raw.lower().startswith("data:"):
-        head, _, payload = raw.partition(",")
-        mime = head[5:].split(";", 1)[0].strip().lower() or None
-        return base64.b64decode(payload), mime
-    return base64.b64decode(raw), None
-
-
-def _resolve_b64_suffix(filename: str, raw: str, mime: Optional[str]) -> str:
-    """确定 b64 上传的落盘后缀：filename 参数 > data-URI MIME > 前缀嗅探 > .png。"""
-    if filename:
-        suffix = Path(filename).suffix.lower()
-        if suffix:
-            return suffix
-        logger.warning("[upload] filename=%r 无后缀，转入后续推断", filename)
-    if mime:
-        ext = _MIME_EXTS.get(mime)
-        if ext:
-            return ext
-        logger.warning("[upload] 未识别 MIME %s，转入后续推断", mime)
-    for ext in _SNIFF_EXTS:
-        if ext in raw[:64].lower():
-            return ext
-    logger.warning("[upload] 无法识别文件类型，默认 .png（建议显式传 filename）")
-    return ".png"
 
 
 def _resolve_workflow(mgr: ComfyUIManager, workflow_name: str,
@@ -124,8 +68,30 @@ def build_mcp_server(mgr: ComfyUIManager) -> MCPServer:
         建议开始任何任务前先调用本工具：含认证、标准流程、媒体输入约定、
         轮询间隔、取消/超时语义、REST 端点与 curl 示例、错误码排障、调用纪律。
         指南文件：server/user-guide.md（与 REST /files、/api 端点同源维护）。
+        正文不含任何固定地址；返回末尾按 config 的 server.public_base_url
+        动态注入“7. 本部署地址与直连方式”（实际 base + 上传/下载 curl）。
         """
         text = Path(__file__).with_name("user-guide.md").read_text(encoding="utf-8")
+        base = (mgr.config.server.public_base_url or "").rstrip("/")
+        if base:
+            text += (
+                "\n## 7. 本部署地址与直连方式（由 config `server.public_base_url` 动态注入）\n\n"
+                f"本服务实际地址为 `{base}`（正文中 `$BASE` / `http://<host>:<port>` "
+                "均指此值，§4 的 REST 示例替换后即可直接执行）。两个高频直连用法：\n\n"
+                "1. **文件上传**（媒体素材；先用 MCP 只读工具 "
+                "`comfyui_request_upload_ticket(instance)` 取一次性票据）：\n"
+                f"   ```\n"
+                f"   curl -F \"file=@<本地文件>\" \"{base}/api/upload?file_type=input&instance=<实例>&ticket=<票据>\"\n"
+                f"   # → {{\"name\": \"tmpxxxxxx.png\", ...}}（用返回的 name 作 INPUT_*_FILE 参数值）\n"
+                f"   ```\n"
+                "   （持有门户 Bearer token 时可免票据：同一 URL 加 "
+                "`-H \"Authorization: Bearer <token>\"`）\n\n"
+                "2. **产物下载**（免认证；文件名来自 `task_status` 的 "
+                "`outputs_urls` / `outputs`）：\n"
+                f"   ```\n"
+                f"   curl -o out.mp3 \"{base}/files/<文件名>\"\n"
+                f"   ```\n"
+            )
         return {"guide_md": text, "chars": len(text)}
 
     @srv.tool()
@@ -156,7 +122,8 @@ def build_mcp_server(mgr: ComfyUIManager) -> MCPServer:
         - routing（P5.13 路由推荐）: recommended_instance = 符合要求（config 规则∩可达）
           且排队最少（加权最低分，平局→default_instance）；candidates 列出每个实例的
           supported/excluded_reason/queued/running/health/score；全不可达时为 null + reason。
-          **upload_file / submit_task 的 instance 参数必填——用这里的 recommended_instance**
+          **票据申请（request_upload_ticket）/ submit_task 的 instance 参数必填——
+          用这里的 recommended_instance**
         - stats: 本服务进程内存统计（重启清零；终态受 24h/200 条裁剪）：
           total/completed/failed/cancelled/in_progress/success_rate +
           recent_failures（最近 5 类失败，按 error 去重合并：error/count/last_at，
@@ -227,13 +194,18 @@ def build_mcp_server(mgr: ComfyUIManager) -> MCPServer:
         含 outputs 本地文件路径与 text_outputs），用 comfyui_cancel_task 取消
         （排队中=删远端队列，执行中=/interrupt）。
 
+        媒体文件上传（MCP 无上传工具）：用 comfyui_request_upload_ticket(instance)
+        取一次性票据 → 本地执行其返回的 curl 命令（REST multipart 直传，文件字节
+        走 HTTP 不进模型上下文）→ 用返回的 name 注入 INPUT_*_FILE 参数（须同一实例）。
+        预检发现媒体文件缺失时，本工具报错会直接内嵌票据与 curl 命令。
+
         Args:
             instance: 实例名（必填，不能为空；取 describe 的 routing.recommended_instance）
             workflow_name: 工作流名（与 prompt_json 二选一）
             prompt_json: 内联 API 格式工作流 JSON 字符串（内联无名字，不受实例规则限制）
             params: 参数注入，如 {"INPUT_POSITIVE_TEXT": "...", "seed": 42}；
-                媒体参数为文件名（先 comfyui_upload_file 上传取 name，
-                如 {"INPUT_IMAGE_FILE": "xxx_ref.png"}，须同一实例）
+                媒体参数为文件名（按上述票据+REST 流程上传取 name，
+                如 {"INPUT_IMAGE_FILE": "tmpxxxxxx.png"}，须同一实例）
             timeout_s: 总超时秒（默认 3600，含排队等待；超时后按状态停止并记 FAILED）
             token: 用户积分 token（可选）；传入则提交前做预检（余额/token 上限/在途
                 上限），不足即拒。不传=匿名（仅当服务允许匿名任务时）
@@ -278,59 +250,35 @@ def build_mcp_server(mgr: ComfyUIManager) -> MCPServer:
 
     @srv.tool()
     @mcp_tool_guard
-    async def comfyui_upload_file(instance: str,
-                                  file_path: str = "",
-                                  file_b64: str = "",
-                                  filename: str = "",
-                                  file_type: str = "input") -> dict:
-        """上传文件到 ComfyUI（图片/音频/视频等任意类型；返回的 name 供工作流节点引用，
-        如 LoadImage / LoadAudio / VHS_LoadVideo）。
+    async def comfyui_request_upload_ticket(instance: str,
+                                            file_type: str = "input") -> dict:
+        """签发一次性媒体上传票据（上传唯一通道 = REST 直传，MCP 无上传工具）。
 
-        instance 必填：必须与后续 submit_task 的 instance 一致（媒体文件实例局部，
-        取同一份 describe 的 routing.recommended_instance）。
-
-        与媒体输入工作流配套（P5.10 统一约定）：先上传取返回的 name，再以 params
-        注入对应 INPUT_*_FILE（如 INPUT_IMAGE_FILE），上传与执行须同一实例；
-        file_b64 分支仅远程/跨机器客户端使用（本服务机上的素材走 file_path）。
-
-        通道选择（为省上下文）：素材在服务机 → file_path（零开销）；本机小文件
-        （<3MB，MCP 请求体 4MiB 上限）→ file_b64（b64 字符串会进入对话历史并驻留，
-        大文件一调用就占爆上下文）；本机大文件 → REST `POST /api/upload?instance=`
-        （multipart 直传，字节走 HTTP 不进模型上下文，零开销）。file_b64/REST 的
-        落盘名均为服务端随机 tmp 名，工作流参数必须引用返回的 name。
+        媒体文件（INPUT_*_FILE 参数的图片/音频/视频）一律三步：
+          1. 本工具取票据（短时效、单次有效、绑定 instance）
+          2. 本地执行返回的 curl 命令（REST multipart 直传，文件字节走 HTTP
+             不进模型上下文——绝不把文件内容塞进对话/MCP 参数）
+          3. 用返回的 name 作为 INPUT_*_FILE 参数值调用 comfyui_submit_task
+             （name 为服务端随机 tmp 名，必须引用返回值；上传与执行须同一实例）
 
         Args:
-            instance: 实例名（必填，与 submit_task 同一实例；取 describe 的 routing.recommended_instance）
-            file_path: 服务机上的文件路径（与 file_b64 二选一；后缀原样保留，最省心。
-                调用方本机的文件经 MCP 工具上传必须走 file_b64——服务机看不到
-                调用方磁盘，传本机路径必然"上传失败：文件不存在"）
-            file_b64: base64 文件数据（支持裸 base64 与 data-URI 如 data:audio/wav;base64,...；图片/音频/视频扩展名均可识别）
-            filename: 仅 file_b64 分支用，只取其后缀（如 clip.mp4 / .aac）；最终落盘名为随机名+该后缀，以返回的 name 为准；音频/视频 base64 建议传
-            file_type: 目标文件夹 input / output / temp（ComfyUI 端目录）
+            instance: 实例名（必填；与 submit_task 同一实例，取 describe 的
+                routing.recommended_instance）
+            file_type: 目标文件夹 input / output / temp（默认 input）
         """
-        target = file_path
-        tmp = None
-        if not target and file_b64:
-            try:
-                data, mime = _decode_b64_payload(file_b64)
-            except (binascii.Error, ValueError) as e:
-                return {"ok": False, "error": f"base64 解码失败：{e}"}
-            suffix = _resolve_b64_suffix(filename, file_b64, mime)
-            tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
-            tmp.write(data)
-            tmp.close()
-            target = tmp.name
-            logger.info("[upload] b64 分支：suffix=%s mime=%s size=%d",
-                        suffix, mime, len(data))
-        try:
-            return await mgr.upload_image(instance, target,
-                                          image_type=file_type)
-        finally:
-            if tmp is not None:
-                try:
-                    import os
-                    os.unlink(tmp.name)
-                except OSError:
-                    pass
+        inst = instance.strip()
+        if not inst:
+            raise ComfyUIError("instance 必填（与 submit_task 同一实例，"
+                               "取 describe 的 routing.recommended_instance）")
+        mgr.client_for(inst)  # 未知实例 → ComfyUIError
+        t = mgr.tickets.issue(inst, file_type or "input")
+        base = (mgr.config.server.public_base_url or "").rstrip("/")
+        curl = (f'curl -F "file=@<本地文件>" "{base}/api/upload'
+                f'?file_type={t["file_type"]}&instance={inst}&ticket={t["ticket"]}"')
+        return {"ticket": t["ticket"], "instance": inst,
+                "file_type": t["file_type"], "expires_in": t["expires_in"],
+                "curl": curl,
+                "hint": ("上传返回 {name, subfolder, type}；name 为服务端随机 tmp 名，"
+                         "用它作 INPUT_*_FILE 参数值重新 comfyui_submit_task（同一实例）")}
 
     return srv

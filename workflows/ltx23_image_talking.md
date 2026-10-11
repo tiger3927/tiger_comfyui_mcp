@@ -12,8 +12,8 @@
 - INPUT_WIDTH_VALUE   宽度
 - INPUT_HEIGHT_VALUE  高度
 - INPUT_FPS_VALUE  帧率，默认16
-- INPUT_AUDIO_FILE   声音文件名
-- INPUT_IMAGE_FILE   图像文件名
+- INPUT_AUDIO_FILE   声音文件名（先经 REST 上传再注入：`comfyui_request_upload_ticket` 取票据 → curl 直传）
+- INPUT_IMAGE_FILE   图像文件名（同上）
 - INPUT_SECONDS_VALUE  视频时长秒数，应小于低于声音长度
 ## 预计时间
 - 5分钟(生成15秒视频)

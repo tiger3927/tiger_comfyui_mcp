@@ -9,7 +9,7 @@
 - 可以指定负向提示词，描述不应该有什么声音
 
 ## 参数
-- INPUT_VIDEO_FILE   视频文件名
+- INPUT_VIDEO_FILE   视频文件名（先经 REST 上传再注入：`comfyui_request_upload_ticket` 取票据 → curl 直传）
 - INPUT_PROMPT_TEXT   正向提示词
 - INPUT_NEGATIVE_PROMPT_TEXT   负向提示词
 ## 预计时间

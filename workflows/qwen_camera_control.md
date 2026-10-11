@@ -5,10 +5,10 @@
 ## 介绍
 - 基于 QwenImageEditPlus 的多机位/多角度图像生成
 
-- 传入底图文件名（先调 `comfyui_upload_file` 上传），通过水平角、垂直角、缩放参数控制相机视角
+- 传入底图文件名（先经 REST 上传：`comfyui_request_upload_ticket` 取票据 → curl 直传），通过水平角、垂直角、缩放参数控制相机视角
 
 ## 参数
-- INPUT_IMAGE_FILE   底图文件名
+- INPUT_IMAGE_FILE   底图文件名（同上）
 - INPUT_H_ANGLE_VALUE      水平角度
 - INPUT_V_ANGLE_VALUE      垂直角度
 - INPUT_ZOOM_VALUE         缩放系数

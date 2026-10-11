@@ -15,7 +15,7 @@
 - INPUT_REDZIMAGE_BOOL_VALUE  使用RedZImage
 - INPUT_POSE_BOOL_VALUE       使用姿势参考图
 - INPUT_ADDNOISE_BOOL_VALUE   加噪点及放大细化
-- INPUT_POSE_FILE   人物姿势参考图文件名
+- INPUT_POSE_FILE   人物姿势参考图文件名（启用姿势参考时必传；先经 REST 上传再注入：`comfyui_request_upload_ticket` 取票据 → curl 直传）
 - INPUT_SEED   随机种子（默认 42）
 ## 预计时间
 - 20秒

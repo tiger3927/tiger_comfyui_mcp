@@ -43,9 +43,9 @@ python main.py
 
 工作流资产在 `workflows/`（json 为 API 格式 prompt 字典，同名 .md 为说明，含"所需节点"清单）。
 参数注入约定：`_meta.title` 以 `INPUT_` 开头的节点为输入参数（如 `INPUT_POSITIVE_TEXT`），`OUTPUT_` 开头为文本输出；无约定时按 class_type 启发式识别。
-**媒体输入约定**：全部工作流的媒体参数均为**文件名**（`INPUT_*_FILE`，如 `INPUT_IMAGE_FILE`/`INPUT_AUDIO_FILE`/`INPUT_VIDEO_FILE`）——先调 `comfyui_upload_file` 上传取返回的 `name`，再以 `params` 注入（上传与执行须同一实例）；工作流不存在 base64/URL 媒体输入。
+**媒体输入约定**：全部工作流的媒体参数均为**文件名**（`INPUT_*_FILE`，如 `INPUT_IMAGE_FILE`/`INPUT_AUDIO_FILE`/`INPUT_VIDEO_FILE`）。**MCP 无上传工具**——上传唯一通道为 REST `POST /api/upload` multipart 直传，配合 MCP 只读工具 `comfyui_request_upload_ticket` 签发的一次性上传票据（取票据 → curl 直传 → 用返回 `name` 注入 params，上传与执行须同一实例）；工作流不存在 base64/URL 媒体输入。
 
-**多实例路由（P5.13）**：`comfyui_describe_workflow` 返回 `routing` 块——`recommended_instance` = 符合要求（`workflow_rules` ∩ 可达）且排队最少（`routing.weights` 加权最低分，平局→`default_instance`）；`candidates` 列各实例 `supported/excluded_reason/queued/running/health/score`。**实例选择由调用方完成**：`comfyui_submit_task` / `comfyui_upload_file` 的 `instance` 参数**必填**（空→立即报错），点名实例不匹配其 `workflow_rules` 时**立即硬拒**（不排队后炸）；服务端不自动路由。内联 `prompt_json` 无名字，不受实例规则限制。
+**多实例路由（P5.13）**：`comfyui_describe_workflow` 返回 `routing` 块——`recommended_instance` = 符合要求（`workflow_rules` ∩ 可达）且排队最少（`routing.weights` 加权最低分，平局→`default_instance`）；`candidates` 列各实例 `supported/excluded_reason/queued/running/health/score`。**实例选择由调用方完成**：`comfyui_submit_task` / `comfyui_request_upload_ticket` 的 `instance` 参数**必填**（空→立即报错），点名实例不匹配其 `workflow_rules` 时**立即硬拒**（不排队后炸）；服务端不自动路由。内联 `prompt_json` 无名字，不受实例规则限制。
 
 ## MCP 接入
 
@@ -75,7 +75,7 @@ MCP 客户端配置（Streamable HTTP）：
 | `comfyui_submit_task(instance, ...)` | 唯一执行入口：提交工作流执行，立即返回 task_id（**`instance` 必填**，取 describe 的 `routing.recommended_instance`；点名实例不匹配其 `workflow_rules` 立即硬拒；可选 `timeout_s`，默认 3600，含排队等待） | 写 |
 | `comfyui_task_status(task_id)` | 轮询节点级进度（建议 10–30s 间隔；completed 后返回含 outputs 本地文件路径） | 读 |
 | `comfyui_cancel_task(task_id)` | 取消（pending 取消 job / running 走 /interrupt） | 写 |
-| `comfyui_upload_file(instance, ...)` | 上传文件（**`instance` 必填**，与 submit 同一实例；`file_path` 或 `file_b64`；base64 支持 data-URI，音频/视频建议配 `filename`；返回 name 供工作流媒体参数引用） | 写 |
+| `comfyui_request_upload_ticket(instance, file_type?)` | 签发一次性媒体上传票据（短时效单次、绑定实例；返回含可直接执行的 curl 命令）→ `POST /api/upload` multipart 直传，文件字节走 HTTP 不进模型上下文；MCP 层无上传工具 | 读（免 key） |
 
 执行统一为"提交 → task_id → 轮询"：`comfyui_submit_task` 的 `workflow_name`（workflows/ 下的名称）与 `prompt_json`（内联 JSON）二选一，`params` 注入输入参数，如：
 
@@ -90,16 +90,20 @@ MCP 客户端配置（Streamable HTTP）：
 // 轮询 comfyui_task_status（建议 10–30s 间隔）直至 status=completed
 ```
 
-媒体输入工作流走"先上传、后按文件名调用"两步（上传与执行须**同一 instance**，同取 routing 推荐值）：
+媒体输入工作流走"取票据 → REST 直传 → 按文件名提交"三步（上传与执行须**同一 instance**，同取 routing 推荐值）：
 
 ```json
-{ "name": "comfyui_upload_file",
-  "arguments": { "instance": "newgoai", "file_path": "D:\\素材\\ref.png" } }
-// 返回 { "name": "17480000000000_ref.png" }（落入该实例 ComfyUI 的 input/ 目录）
+{ "name": "comfyui_request_upload_ticket",
+  "arguments": { "instance": "newgoai" } }
+// 返回 { "ticket": "up_...", "curl": "curl -F \"file=@<本地文件>\" \".../api/upload?...&ticket=...\"", ... }
+
+// ② 本地执行 curl（字节走 HTTP，不进模型上下文）：
+// curl -F "file=@D:\素材\ref.png" "http://.../api/upload?file_type=input&instance=newgoai&ticket=up_..."
+// → { "name": "tmpxxxxxx.png" }（服务端随机 tmp 名，必须引用返回值）
 
 { "name": "comfyui_submit_task",
   "arguments": { "instance": "newgoai", "workflow_name": "qwen_image_edit_1",
-                  "params": { "INPUT_IMAGE_1_FILE": "17480000000000_ref.png",
+                  "params": { "INPUT_IMAGE_1_FILE": "tmpxxxxxx.png",
                               "INPUT_PROMPT_VALUE": "图1的人物摆出胜利姿势" } } }
 // 轮询 comfyui_task_status 直至 completed，outputs 即产物
 ```

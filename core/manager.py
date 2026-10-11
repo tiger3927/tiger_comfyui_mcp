@@ -18,6 +18,7 @@ from typing import Any, Optional
 from core.comfy_client import ComfyUIClient, check_workflow
 from core.media import collect_outputs
 from core.tasks import TaskManager
+from core.tickets import TicketStore
 from core.workflow import (
     inject_params,
     list_workflow_files,
@@ -99,6 +100,9 @@ class ComfyUIManager:
         self.base_dir = p.resolve().parent
         self._clients: dict[str, ComfyUIClient] = {}
         self.tasks = TaskManager()
+        # 一次性上传票据（上传通道 REST 化）：MCP 票据工具签发 + /api/upload 核销 +
+        # 预检报错内嵌。内存态，重启清零（票据短命无需持久化）。
+        self.tickets = TicketStore()
         # 门户提交前预检钩子（Task-WWW.md §5.2）：可选、默认 None=零行为变化。
         # main.py 组合时注入 async precheck(workflow_name, params, user_token, task_id)；
         # 抛异常即"提交即拒"。core 不 import portal，钩子由外部注入。
@@ -236,8 +240,12 @@ class ComfyUIManager:
                             detail[-1] += (
                                 f"（该实例可用 {m0['available_count']} 个，"
                                 f"示例：{m0['available_sample']}）")
+                    media_hint = ""
+                    if health["inputs_placeholder_missing"]:
+                        media_hint = self._media_upload_hint(client.instance.name)
                     raise ComfyUIError(
-                        f"预检不通过（{client.instance.name}）：" + "；".join(detail))
+                        f"预检不通过（{client.instance.name}）：" + "；".join(detail)
+                        + media_hint)
 
             # P5.11 加固 e：每任务独立 client_id。服务端按 ?clientId= 注册 WS
             # 会话且事件只路由到该 slot（同 clientId 的新连接顶掉旧连接）；
@@ -566,8 +574,29 @@ class ComfyUIManager:
         return False, f"任务已是终态 {record.status.value}"
 
     # ------------------------------------------------------------------
-    # 上传
+    # 上传（通道 REST 化：MCP 无上传工具，媒体走 /api/upload + 一次性票据）
     # ------------------------------------------------------------------
+    def _media_upload_hint(self, instance_name: str) -> str:
+        """媒体文件缺失时生成 REST 直传指引（内嵌一次性票据，报错即文档）。
+
+        票据短时效、单次、绑定实例、不挂用户身份——即使随报错进入对话历史
+        也无泄露价值。签发失败或未配 public_base_url 时静默降级为无指引
+        （不影响原报错）。
+        """
+        base = (self.config.server.public_base_url or "").rstrip("/")
+        if not base:
+            return ""
+        try:
+            t = self.tickets.issue(instance_name, "input")
+        except Exception as e:
+            logger.warning("[ticket] 预检内嵌票据签发失败（忽略）：%s", e)
+            return ""
+        curl = (f'curl -F "file=@<本地文件>" "{base}/api/upload'
+                f'?file_type=input&instance={instance_name}&ticket={t["ticket"]}"')
+        return (f"。媒体上传：本地执行 {curl}"
+                f"（票据 {t['expires_in']} 秒单次有效）→ 用返回的 name 作为"
+                f"对应 INPUT_*_FILE 参数值重新 submit_task（同一实例）")
+
     async def upload_image(self, instance: Optional[str], file_path: str,
                            image_type: str = "input", overwrite: bool = True) -> dict:
         # P5.13：instance 必填——媒体文件实例局部，必须与 submit 的 instance 一致

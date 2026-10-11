@@ -6,7 +6,7 @@
 - 采用flashvsr模型把原视频高清2倍，能细化环境与人物细节
 
 ## 参数
-- INPUT_VIDEO_FILE   视频文件名
+- INPUT_VIDEO_FILE   视频文件名（先经 REST 上传再注入：`comfyui_request_upload_ticket` 取票据 → curl 直传）
 ## 预计时间
 - 2分钟(生成5秒视频)
 ## 输出文件的前缀

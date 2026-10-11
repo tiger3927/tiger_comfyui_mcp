@@ -9,8 +9,8 @@
 
 ## 参数
 - INPUT_PROMPT_VALUE   提示词
-- INPUT_IMAGE_1_FILE   图1文件名
-- INPUT_IMAGE_2_FILE   图2文件名
+- INPUT_IMAGE_1_FILE   图1文件名（先经 REST 上传再注入：`comfyui_request_upload_ticket` 取票据 → curl 直传）
+- INPUT_IMAGE_2_FILE   图2文件名（同上）
 - INPUT_SEED   随机种子（默认 42）
 ## 预计时间
 - 20秒
