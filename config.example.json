@@ -35,5 +35,17 @@
   "output_retention_days": 7,
   "cleanup_interval_hours": 6,
   "task_retention_hours": 24,
-  "task_max_retained": 200
+  "task_max_retained": 200,
+  "portal": {
+    "db_path": "portal.db",
+    "rmb_per_credit": 0.01,
+    "recharge_min": 1,
+    "recharge_max": 5000,
+    "recharge_auto_credit": true,
+    "order_timeout_s": 600,
+    "sync_interval_s": 5,
+    "max_active_per_user": 1,
+    "jwt_ttl_hours": 72,
+    "jwt_secret": "CHANGE_ME_PORTAL_JWT_SECRET_MIN_32_CHARS"
+  }
 }

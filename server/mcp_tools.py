@@ -212,7 +212,8 @@ def build_mcp_server(mgr: ComfyUIManager) -> MCPServer:
                                   workflow_name: str = "",
                                   prompt_json: str = "",
                                   params: Optional[dict[str, Any]] = None,
-                                  timeout_s: float = 3600.0) -> dict:
+                                  timeout_s: float = 3600.0,
+                                  token: Optional[str] = None) -> dict:
         """提交工作流执行（唯一执行入口），立即返回 task_id。
 
         instance 必填：用 comfyui_describe_workflow 返回的 routing.recommended_instance
@@ -231,11 +232,14 @@ def build_mcp_server(mgr: ComfyUIManager) -> MCPServer:
                 媒体参数为文件名（先 comfyui_upload_file 上传取 name，
                 如 {"INPUT_IMAGE_FILE": "xxx_ref.png"}，须同一实例）
             timeout_s: 总超时秒（默认 3600，含排队等待；超时后按状态停止并记 FAILED）
+            token: 用户积分 token（可选）；传入则提交前做预检（余额/token 上限/在途
+                上限），不足即拒。不传=匿名（仅当服务允许匿名任务时）
         """
         wf, wf_name = _resolve_workflow(mgr, workflow_name, prompt_json)
         task_id = await mgr.submit_workflow(
             instance=instance, workflow=wf, params=params,
             workflow_name=wf_name, timeout_s=timeout_s,
+            user_token=token,
         )
         return {"task_id": task_id,
                 "hint": "用 comfyui_task_status 轮询（建议 10–30s 间隔，图片和语音生成类10s间隔，视频生成类20s间隔，视频类多次轮询还在排队扩展到30s间隔），"

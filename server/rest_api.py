@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -73,14 +73,18 @@ def build_router(mgr: ComfyUIManager) -> APIRouter:
                 "stats": mgr.tasks.workflow_stats(name)}
 
     @r.post("/tasks", status_code=202)
-    async def create_task(body: TaskRequest):
+    async def create_task(request: Request, body: TaskRequest):
         """唯一执行入口：立即返回 task_id，用 GET /api/tasks/{id} 轮询。"""
+        # 用户积分 token：从 Authorization: Bearer 读（Task-WWW §5.3；AuthMiddleware 已校验有效）
+        _auth = request.headers.get("Authorization", "")
+        token = _auth.removeprefix("Bearer ").strip() if _auth.startswith("Bearer ") else ""
         try:
             wf, wf_name = _wf(mgr, body.workflow_name, body.prompt_json)
             task_id = await mgr.submit_workflow(
                 instance=body.instance, workflow=wf,
                 params=body.params, workflow_name=wf_name,
                 timeout_s=body.timeout_s,
+                user_token=token,
             )
         except ComfyUIError as e:
             raise HTTPException(400, str(e))

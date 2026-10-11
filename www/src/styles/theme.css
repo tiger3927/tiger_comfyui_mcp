@@ -1,0 +1,248 @@
+/* ============ 老虎C站 · 品牌主题 ============
+   Element Plus dark 模式（html.dark）+ 品牌 token（§7.1）
+   主色：虎橙 / 琥珀（#f97316 系），避开通用蓝紫，强化品牌记忆点。 */
+:root {
+  /* 品牌主色：虎橙 */
+  --accent: #f97316;
+  --accent-2: #ea580c;
+  --accent-soft: #fff4ec;
+  --accent-contrast: #ffffff;
+
+  /* 基础色（背景略深，与纯白卡片拉开对比） */
+  --bg: #eef1f6;
+  --fg: #1a1d23;
+  --card: #ffffff;
+  --border: #e5e8ef;
+  --muted: #8b93a3;
+
+  /* 投影化层级 */
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 4px 14px rgba(16, 24, 40, 0.08);
+  --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.12);
+
+  /* 圆角 */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  /* 数字字体（KPI / 余额） */
+  --font-num: "Bahnschrift", "DIN Alternate", "Helvetica Neue", Arial, sans-serif;
+
+  /* Spacing scale（4/8 基准） */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+
+  /* 字号 scale */
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-base: 14px;
+  --fs-md: 16px;
+  --fs-lg: 20px;
+  --fs-xl: 26px;
+  --fs-2xl: 40px;
+
+  /* 字重 scale */
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --fw-extrabold: 800;
+
+  /* Element Plus 圆角 / 字号微调，提升现代感 */
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 6px;
+  --el-border-radius-round: 20px;
+
+  /* Element Plus 主色联动（虎橙派生） */
+  --el-color-primary: #f97316;
+  --el-color-primary-light-3: #fb9d5c;
+  --el-color-primary-light-5: #fcb98a;
+  --el-color-primary-light-7: #fdd5ba;
+  --el-color-primary-light-8: #fee3d0;
+  --el-color-primary-light-9: #fff0e7;
+  --el-color-primary-dark-2: #c75c12;
+}
+html.dark {
+  --accent: #fb923c;
+  --accent-2: #f97316;
+  --accent-soft: rgba(251, 146, 60, 0.14);
+  --accent-contrast: #1a1d23;
+
+  --bg: #0d1016;
+  --fg: #e8eaed;
+  --card: #161b24;
+  --border: #262d3a;
+  --muted: #8b94a3;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.55);
+
+  /* Element Plus 主色联动（深色用亮橙，深底更醒目） */
+  --el-color-primary: #fb923c;
+  --el-color-primary-light-3: #fcb26f;
+  --el-color-primary-light-5: #fcca9d;
+  --el-color-primary-light-7: #fed9ba;
+  --el-color-primary-light-8: #fee5cf;
+  --el-color-primary-light-9: #fff1e8;
+  --el-color-primary-dark-2: #d0741f;
+
+  /* 表格行 hover/选中：深底用柔和橙色高亮，避免浅色背景吃掉浅色文字 */
+  --el-table-row-hover-bg-color: var(--accent-soft);
+  --el-table-current-row-bg-color: var(--accent-soft);
+}
+
+/* 深色模式：plain 主色按钮过亮修正（Element Plus 的 primary-light-9 派生色在深底偏白，
+   浅色文字落在其上对比不足）。背景改用品牌淡橙 --accent-soft，文字/边框主橙，hover 转实心。 */
+html.dark .el-button--primary.is-plain {
+  --el-button-bg-color: var(--accent-soft);
+  --el-button-border-color: var(--accent-2);
+  --el-button-text-color: var(--accent);
+  --el-button-hover-bg-color: var(--accent);
+  --el-button-hover-border-color: var(--accent);
+  --el-button-hover-text-color: #fff;
+  --el-button-active-bg-color: var(--accent-2);
+  --el-button-active-border-color: var(--accent-2);
+}
+
+/* 深色模式：菜单激活/悬停项背景过亮修正（Element Plus 默认 active 背景在深底偏亮，
+   浅色文字对比不足）。背景改用品牌淡橙 --accent-soft，左侧竖条 + 激活项橙字标识保留。 */
+html.dark .el-menu {
+  --el-menu-hover-bg-color: var(--accent-soft);
+}
+html.dark .el-menu .el-menu-item.is-active,
+html.dark .el-menu .el-menu-item:hover,
+html.dark .el-menu .el-sub-menu .el-menu-item.is-active {
+  background-color: var(--accent-soft);
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+}
+#app { height: 100%; }
+
+a { color: var(--accent); text-decoration: none; }
+
+/* 卡片：投影化 + 圆角 token */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-5);
+  box-shadow: var(--shadow-md);
+  transition: box-shadow .18s ease, transform .18s ease;
+}
+.card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+/* 品牌资产卡（虎橙渐变） */
+.balance-card {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: var(--accent-contrast);
+  border: none;
+  box-shadow: var(--shadow-lg);
+}
+.balance-card .num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-2xl); font-weight: var(--fw-extrabold); line-height: 1.2;
+  letter-spacing: 0.5px;
+}
+.balance-card .lbl { opacity: 0.9; font-size: var(--fs-base); }
+
+.stat-num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-xl); font-weight: var(--fw-bold);
+  letter-spacing: 0.3px;
+}
+.stat-lbl { font-size: var(--fs-sm); color: var(--muted); }
+
+.muted { color: var(--muted); font-size: var(--fs-sm); }
+.mt8 { margin-top: var(--sp-2); }
+.mt16 { margin-top: var(--sp-4); }
+.mb16 { margin-bottom: var(--sp-4); }
+.row-gap { display: flex; gap: var(--sp-4); flex-wrap: wrap; }
+.flex1 { flex: 1; min-width: 240px; }
+
+/* 登录页：品牌氛围光晕 */
+.login-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(1100px 520px at 82% -12%, var(--accent-soft), transparent 62%),
+    var(--bg);
+  padding: 16px;
+}
+.login-card { width: 420px; max-width: 100%; box-shadow: var(--shadow-lg); }
+.login-hero {
+  width: 100%; height: 190px; object-fit: cover; object-position: center;
+  border-radius: var(--radius-md) var(--radius-md) 0 0; display: block;
+}
+.login-title { text-align: center; font-size: 22px; font-weight: 800; margin: 18px 0 4px; letter-spacing: 1px; }
+.login-sub { text-align: center; color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+
+/* 二维码 */
+.qr-box { display: flex; justify-content: center; padding: 12px; }
+.qr-box img { width: 220px; height: 220px; border-radius: var(--radius-sm); }
+
+.empty-img { width: 120px; opacity: 0.85; }
+
+/* ============ 响应式（手机 < 768px / 平板 768~991px）============
+   策略：桌面（≥992px）维持现状零回归；手机用「汉堡 + 左侧抽屉」替代固定侧栏，
+   栅格/表格/字号在媒体查询内收紧。配合 layout 的 v-if="isMobile" 控制结构显隐。 */
+
+/* 桌面专属元素（手机隐藏）；手机专属元素用 v-if="isMobile" 控制 */
+.desktop-only { }
+@media (max-width: 767px) {
+  .desktop-only { display: none !important; }
+}
+
+@media (max-width: 767px) {
+  /* 卡片内边距/圆角收紧 */
+  .card { padding: 14px; border-radius: var(--radius-sm); }
+
+  /* 大字号收紧 */
+  .balance-card .num { font-size: 30px; }
+  .stat-num { font-size: 22px; }
+  .login-hero { height: 150px; }
+
+  /* flex 工具栏/头部换行 */
+  .toolbar { flex-wrap: wrap !important; row-gap: 8px; }
+
+  /* flex 卡片：手机上单列排布 */
+  .row-gap { gap: 10px; }
+  .flex1 { min-width: 100%; }
+
+  /* 登录 / 支付卡全屏宽 */
+  .login-card { width: 100%; }
+
+  /* 表格：确保不撑破容器（Element Plus el-table 内置横向滚动） */
+  .el-table { width: 100%; }
+
+  /* 抽屉在手机上占满全屏 */
+  .el-drawer { width: 100% !important; }
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  /* 平板：flex 卡片允许两列 */
+  .flex1 { min-width: 200px; }
+}
+
+/* 手机菜单抽屉：窄抽屉 + 去掉 body 内边距 + 内容可纵向滚动
+   theme.css 为全局（非 scoped），可作用到 teleport 到 body 的 el-drawer */
+.mobile-menu-drawer .el-drawer__body { padding: 0; overflow-y: auto; }
+.mobile-menu-drawer .brand { border-bottom: 1px solid var(--border); }

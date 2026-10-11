@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="老虎C站">
+  <defs>
+    <linearGradient id="tgBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="52%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 圆角徽章底：琥珀→橙→深橙 -->
+  <rect x="3" y="3" width="94" height="94" rx="22" fill="url(#tgBg)"/>
+
+  <!-- 低多边形虎头（黑）：左耳 / 右耳 / 头 -->
+  <g fill="#151210">
+    <polygon points="17,44 22,16 40,31"/>
+    <polygon points="83,44 78,16 60,31"/>
+    <path d="M50 22 C32 22 19 34 19 53 C19 72 33 86 50 91 C67 86 81 72 81 53 C81 34 68 22 50 22 Z"/>
+  </g>
+
+  <!-- 额头「王」字纹（亮橙） -->
+  <g stroke="#ff9d3c" stroke-width="4.5" stroke-linecap="round" fill="none">
+    <line x1="50" y1="29" x2="50" y2="47"/>
+    <line x1="39" y1="31" x2="35" y2="46"/>
+    <line x1="61" y1="31" x2="65" y2="46"/>
+  </g>
+
+  <!-- 凶眼（奶白）+ 瞳孔（亮橙） -->
+  <g fill="#fff6e8">
+    <path d="M28 51 L45 56 L28 62 Z"/>
+    <path d="M72 51 L55 56 L72 62 Z"/>
+  </g>
+  <g fill="#ffb020">
+    <polygon points="32,53 40,56 32,59"/>
+    <polygon points="68,53 60,56 68,59"/>
+  </g>
+
+  <!-- 鼻（橙）+ 嘴 -->
+  <polygon points="42,66 58,66 50,76" fill="#ff9d3c"/>
+  <path d="M50 76 L50 82 M50 82 L42 84 M50 82 L58 84" stroke="#ff9d3c" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+
+  <!-- 脸颊虎纹 -->
+  <g stroke="#ff9d3c" stroke-width="3.2" stroke-linecap="round">
+    <line x1="23" y1="55" x2="30" y2="56"/>
+    <line x1="22" y1="62" x2="29" y2="63"/>
+    <line x1="77" y1="55" x2="70" y2="56"/>
+    <line x1="78" y1="62" x2="71" y2="63"/>
+  </g>
+</svg>

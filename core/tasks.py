@@ -37,6 +37,11 @@ class TaskRecord:
     elapsed: float = 0.0
     created_at: float = field(default_factory=time.time)
     finished_at: Optional[float] = None
+    # 门户计费/归属用（Task-WWW.md §5.1）：只存 sha256(user token) 哈希，绝不存明文；
+    # 刻意**不进 to_dict**（task_view/REST/MCP 出口不序列化）——仅同进程门户 provider
+    # 直接读 record 属性，防任务出口泄漏。params 供计费读取注入后的 W/H/秒数等。
+    user_token_hash: Optional[str] = None
+    params: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -73,6 +78,12 @@ class TaskManager:
             self._evict_locked()
             return record
 
+    async def discard(self, task_id: str) -> None:
+        """移除尚未挂 job 的空记录（门户 precheck 拒绝提交时回滚刚 create 的记录）。"""
+        async with self._lock:
+            self._tasks.pop(task_id, None)
+            self._jobs.pop(task_id, None)
+
     async def attach_job(self, task_id: str, job: asyncio.Task) -> None:
         async with self._lock:
             self._jobs[task_id] = job
@@ -83,6 +94,13 @@ class TaskManager:
     def list(self) -> list[dict]:
         return sorted((t.to_dict() for t in self._tasks.values()),
                       key=lambda d: d["created_at"], reverse=True)
+
+    def list_full(self) -> list[dict]:
+        """门户 provider 快照（Task-WWW.md §2.1）：to_dict + 同进程才可见的
+        user_token_hash / params（刻意不进 to_dict，防任务出口泄漏）。仅主进程组合
+        层注入的 task_provider 使用，不用于 task_view/REST/MCP 出口。"""
+        return [{**t.to_dict(), "user_token_hash": t.user_token_hash,
+                 "params": t.params} for t in self._tasks.values()]
 
     def has_active(self, instance: str) -> bool:
         return any(t.instance == instance and t.status in (TaskStatus.PENDING, TaskStatus.RUNNING)

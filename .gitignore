@@ -12,6 +12,9 @@ log/
 # 本地配置（含密码，勿提交；模板见 config.example.json）
 config.json
 
+# 门户本地 SQLite（含密码哈希/余额/流水，勿提交，Task-WWW §14.6）
+data/
+
 # 项目工具
 codegraph.json
 .codegraph/

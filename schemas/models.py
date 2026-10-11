@@ -81,8 +81,6 @@ class ComfyUIConfig(BaseModel):
     workflow_prune_modes: dict[str, str] = {}
     routing: RoutingConfig = Field(default_factory=RoutingConfig)
     server: ServerConfig = Field(default_factory=ServerConfig)
-    command_token: str = ""
-    query_token: str = ""
     workflows_dir: str = "workflows"
     output_dir: str = "output"
     log_dir: str = "log"

@@ -31,17 +31,22 @@ from starlette.responses import JSONResponse
 
 from core.cleanup import start_cleanup_loop
 from core.manager import get_manager
+from portal.billing import resolve_user_token
+from portal.errors import InvalidToken
 from server.mcp_tools import build_mcp_server
 from server.rest_api import build_router, files_router
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
-# 写类（执行）MCP 工具名；query_token 调用这些工具将被拒绝
-WRITE_TOOLS = frozenset({
-    "comfyui_submit_task", "comfyui_cancel_task", "comfyui_upload_file",
+# MCP 无 key 可访问的握手/发现方法（Task-WWW §5.3：不放行则无 key 客户端连 guide 都调不到）
+MCP_PUBLIC_METHODS = frozenset({
+    "initialize", "notifications/initialized", "ping", "tools/list",
 })
-# REST 写类路径前缀
-WRITE_PREFIXES = ("/api/tasks", "/api/upload")
+# MCP 无 key 可调的只读工具（不含用户数据 / 不计费 / 无副作用）
+MCP_PUBLIC_TOOLS = frozenset({
+    "comfyui_user_guide", "comfyui_list_workflows",
+    "comfyui_status", "comfyui_describe_workflow",
+})
 
 
 # ----------------------------------------------------------------------
@@ -126,14 +131,29 @@ def build_app(config_path: Path | None = None) -> FastAPI:
     setup_logging()
     log = logging.getLogger("main")
 
-    # 认证策略（D3）：两 token 均未配置 → 无认证运行（仅本机调试）
     manager = get_manager(config_path or PROJECT_ROOT / "config.json")
-    command_token = manager.config.command_token
-    query_token = manager.config.query_token
-    auth_enabled = bool(command_token or query_token)
-    if not auth_enabled:
-        log.warning("未配置 command_token/query_token：服务以无认证模式运行（仅限本机调试！"
-                    "远程访问务必配置强 token）")
+
+    # ── 门户（Task-WWW.md）：config 有 "portal" 段才启用 ──
+    portal_app: FastAPI | None = None
+    try:
+        import json as _json
+        _cfg_path = config_path or PROJECT_ROOT / "config.json"
+        _raw_cfg = (_json.loads(Path(_cfg_path).read_text(encoding="utf-8"))
+                    if Path(_cfg_path).exists() else {})
+        _portal_raw = _raw_cfg.get("portal")
+        if isinstance(_portal_raw, dict):
+            from portal.config import PortalSettings
+            from portal.app import build_portal_app
+            _psettings = PortalSettings.from_dict(
+                _portal_raw, public_base_url=manager.config.server.public_base_url)
+            portal_app = build_portal_app(_psettings, manager.tasks.list_full)
+            manager.precheck = portal_app.precheck
+            log.info("[portal] 已启用：db=%s", _psettings.db_path)
+        else:
+            log.info("[portal] config 无 portal 段，门户未启用")
+    except Exception:
+        log.exception("[portal] 初始化失败（降级：门户不可用，MCP/REST 照常）")
+        portal_app = None
 
     sub = build_mcp_server(manager)  # MCPServer 实例
     # mcp 2.x DNS rebinding 防护：默认仅放行 localhost 的 Host，非本机地址连 /mcp/ 返回 421。
@@ -153,7 +173,7 @@ def build_app(config_path: Path | None = None) -> FastAPI:
         async with drive:
             log.info("服务启动：实例=%s 认证=%s 端口=%s:%s",
                      manager.instance_names(),
-                     "on" if auth_enabled else "OFF",
+                     "on" if portal_app is not None else "OFF",
                      manager.config.server.host, manager.config.server.port)
             c = manager.config
             cleanup_task = asyncio.create_task(
@@ -167,9 +187,21 @@ def build_app(config_path: Path | None = None) -> FastAPI:
                      c.task_retention_hours, c.task_max_retained)
             asyncio.create_task(_startup_reconcile(manager), name="startup-reconcile")
             log.info("启动对账已发起（远端活动任务计数，纯观察）")
+            if portal_app is not None:
+                try:
+                    from portal.app import start as _portal_start
+                    await _portal_start(portal_app)
+                except Exception:
+                    log.exception("[portal] 启动失败（降级：门户暂不可用）")
             try:
                 yield
             finally:
+                if portal_app is not None:
+                    try:
+                        from portal.app import stop as _portal_stop
+                        await _portal_stop(portal_app)
+                    except Exception:
+                        log.exception("[portal] 关闭失败（忽略）")
                 cleanup_task.cancel()
                 try:
                     await cleanup_task
@@ -179,47 +211,46 @@ def build_app(config_path: Path | None = None) -> FastAPI:
     app = FastAPI(title="tiger-comfyui-mcp", lifespan=lifespan)
 
     class AuthMiddleware(BaseHTTPMiddleware):
-        """两级 Bearer：command_token 全权限；query_token 只读（写类工具/路径拒绝）。"""
+        """API Key 鉴权（Task-WWW §5.3）：/mcp、/api 走 resolve_user_token（Bearer pt_xxx）；
+        MCP 只读工具 + 握手方法豁免（无 key 可调）；/portal/api、/files 不拦。
+        门户未启用（无 db）→ 不强制鉴权（仅本机调试）。"""
+
+        @staticmethod
+        def _unauthorized(request: Request):
+            if request.url.path.startswith("/mcp"):
+                return JSONResponse(
+                    {"jsonrpc": "2.0", "id": -1,
+                     "error": {"code": -32001, "message": "unauthorized"}},
+                    status_code=401)
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
 
         async def dispatch(self, request: Request, call_next):
-            # P5.20：/files/ 匿名下载（文件名含随机任务前缀，实际不可猜测）；
-            # 外部调用者经 task_status 的 outputs_urls 直链取产物，无需 Bearer
             if not request.url.path.startswith(("/mcp", "/api")):
                 return await call_next(request)
-            if auth_enabled:
-                auth = request.headers.get("Authorization", "")
-                token = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else ""
-                level = None
-                if token and command_token and token == command_token:
-                    level = "command"
-                elif token and query_token and token == query_token:
-                    level = "query"
-                if level is None:
-                    if request.url.path.startswith("/mcp"):
-                        return JSONResponse(
-                            {"jsonrpc": "2.0", "id": -1,
-                             "error": {"code": -32001, "message": "unauthorized"}},
-                            status_code=401)
-                    return JSONResponse({"error": "unauthorized"}, status_code=401)
-                if level == "query":
-                    if request.url.path.startswith("/mcp"):
-                        # 读 body 判工具名（stateless：一次请求一条消息）
-                        try:
-                            body = await request.json()
-                            method = body.get("method", "")
-                            if method == "tools/call":
-                                tool = (body.get("params") or {}).get("name", "")
-                                if tool in WRITE_TOOLS:
-                                    return JSONResponse(
-                                        {"jsonrpc": "2.0", "id": body.get("id", -1),
-                                         "error": {"code": -32002,
-                                                   "message": f"query token 无权调用执行类工具 {tool}"}},
-                                        status_code=403)
-                        except Exception:
-                            pass  # 非 JSON 或解析失败放行（协议层会处理）
-                    elif request.url.path.startswith(WRITE_PREFIXES):
-                        return JSONResponse({"error": "forbidden: query token 只读"},
-                                            status_code=403)
+            db = portal_app.state.db if portal_app is not None else None
+            if db is None:
+                # 门户未启用（无 API Key 体系）→ 不强制鉴权（仅本机调试）
+                return await call_next(request)
+            if request.url.path.startswith("/mcp"):
+                try:
+                    body = await request.json()  # Starlette 缓存 body，下游仍可再读
+                except Exception:
+                    body = {}
+                method = body.get("method", "")
+                if method in MCP_PUBLIC_METHODS:
+                    return await call_next(request)  # 豁免：握手/发现
+                if method == "tools/call" and \
+                        (body.get("params") or {}).get("name", "") in MCP_PUBLIC_TOOLS:
+                    return await call_next(request)  # 豁免：只读工具
+            auth = request.headers.get("Authorization", "")
+            token = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else ""
+            if not token:
+                return self._unauthorized(request)
+            try:
+                user_row, _ = await resolve_user_token(db, token)
+            except InvalidToken:
+                return self._unauthorized(request)
+            request.state.user_id = user_row["uid"]
             return await call_next(request)
 
     app.add_middleware(AuthMiddleware)
@@ -232,6 +263,22 @@ def build_app(config_path: Path | None = None) -> FastAPI:
                 "endpoints": ["/mcp/", "/api/*", "/files/*"]}
 
     app.mount("/mcp", mcp_app, name="mcp")
+
+    # 门户挂载：API 在前（/portal/api 优先匹配），SPA / catch-all 在后
+    if portal_app is not None:
+        app.mount("/portal/api", portal_app)
+        _dist = PROJECT_ROOT / "www" / "dist"
+        if _dist.is_dir():
+            from starlette.staticfiles import StaticFiles
+            app.mount("/portal", StaticFiles(directory=str(_dist), html=True),
+                      name="portal-spa")
+        else:
+            @app.get("/portal/{full_path:path}")
+            async def _portal_placeholder(full_path: str):
+                return JSONResponse(
+                    {"error": {"code": "FrontendNotBuilt",
+                               "message": "门户前端未构建（www/dist 缺失）"}},
+                    status_code=404)
     return app
 
 

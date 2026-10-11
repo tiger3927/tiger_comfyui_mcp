@@ -1,0 +1,27 @@
+[project]
+name = "tiger-comfyui-mcp"
+version = "0.1.0"
+description = "基于 ComfyUI WebSocket/HTTP 协议的 MCP + REST 双入口工具服务（多实例、工作流执行/解析）"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    # MCP 官方 SDK（2026-07-28 规范）；若 T0.3 实测 API 不符则回退 "mcp>=1.28,<2"
+    "mcp>=2.2",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "aiohttp>=3.9",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "httpx>=0.27",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["main"]

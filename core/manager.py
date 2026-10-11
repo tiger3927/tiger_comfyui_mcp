@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import fnmatch
+import hashlib
 import json
 import logging
 import threading
@@ -98,6 +99,10 @@ class ComfyUIManager:
         self.base_dir = p.resolve().parent
         self._clients: dict[str, ComfyUIClient] = {}
         self.tasks = TaskManager()
+        # 门户提交前预检钩子（Task-WWW.md §5.2）：可选、默认 None=零行为变化。
+        # main.py 组合时注入 async precheck(workflow_name, params, user_token, task_id)；
+        # 抛异常即"提交即拒"。core 不 import portal，钩子由外部注入。
+        self.precheck = None
 
     # ------------------------------------------------------------------
     # 配置 / 实例
@@ -287,9 +292,8 @@ class ComfyUIManager:
         view = record.to_dict()
         base = self.config.server.public_base_url
         if base:
-            import posixpath
             view["outputs_urls"] = [
-                f"{base.rstrip('/')}/files/{posixpath.basename(p)}"
+                f"{base.rstrip('/')}/files/{p.replace('\\', '/').rsplit('/', 1)[-1]}"
                 for p in view.get("outputs", [])
             ]
         return view
@@ -425,7 +429,8 @@ class ComfyUIManager:
     async def submit_workflow(self, instance: Optional[str], workflow: dict,
                               params: Optional[dict[str, Any]] = None,
                               workflow_name: str = "workflow",
-                              timeout_s: float = 3600.0) -> str:
+                              timeout_s: float = 3600.0,
+                              user_token: Optional[str] = None) -> str:
         # P5.13：instance 必填（实例选择由调用方完成，取 describe 的
         # routing.recommended_instance）；显式点名 = 规则硬拒（不匹配立即报错，
         # 不排队后炸）。内联 prompt（"inline"）无名字，不受实例规则限制。
@@ -452,6 +457,19 @@ class ComfyUIManager:
             raise ComfyUIError(f"工作流校验失败：{err}")
         name = instance
         record = await self.tasks.create(name, workflow_name)
+        # 门户归属/计费（§5.1）：只存 sha256 哈希 + 注入后 params（供 provider 读取）
+        if user_token:
+            record.user_token_hash = hashlib.sha256(
+                user_token.encode("utf-8")).hexdigest()
+        record.params = dict(params or {})
+        # 提交前预检（§5.2）：余额/token 上限/在途数不足 → 抛错即拒，回滚刚建的记录
+        if self.precheck is not None:
+            try:
+                await self.precheck(workflow_name, params or {}, user_token,
+                                    record.task_id)
+            except BaseException:
+                await self.tasks.discard(record.task_id)
+                raise
         job = asyncio.create_task(self._execute_task(record.task_id, name, workflow,
                                                      params, workflow_name, timeout_s))
         await self.tasks.attach_job(record.task_id, job)
