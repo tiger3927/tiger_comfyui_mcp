@@ -85,11 +85,22 @@ comfyui_submit_task(params={"INPUT_IMAGE_FILE": "xxx.png", ...})
 ```
 
 - **上传与执行必须同一实例**（`name` 是 ComfyUI 端的文件名，实例间不通用）。
-- 文件在**本服务机**上：直接 `file_path`（最省心，后缀原样保留）。
-- 文件在**客户端机器**（跨机器部署）：`file_b64`（裸 base64 或 data-URI；
-  音频/视频建议配 `filename` 指明后缀）；
-  注意 MCP 请求体 4MiB 上限 → b64 通道约限 **3MB 以内**原文件，
-  大文件建议 scp/共享盘先搬上服务机再走 `file_path`。
+
+三条通道按"素材在哪 + 体积"选，总原则：**能不过模型上下文就不过**——
+`file_b64` 的 base64 字符串以工具参数进入对话历史且永久驻留
+（体积 ×1.37，高熵文本约 1 token/3 字符），大文件一调用就占爆上下文。
+
+| 素材位置 | 通道 | 上下文成本 | 说明 |
+|---|---|---|---|
+| 服务机上 | MCP `file_path` | **零** | 后缀/落盘名原样保留（basename），最省心 |
+| 客户端本机，小文件（<3MB） | MCP `file_b64` | 文件×1.37 的 token，一次性 + 驻留历史 | 裸 base64 或 data-URI；音频/视频建议配 `filename` 指明后缀 |
+| 客户端本机，大文件 | **REST `POST /api/upload`**（§4，multipart） | **零**（字节走 HTTP） | `curl -F "file=@本地文件" "$BASE/api/upload?file_type=input&instance=..."`（command_token） |
+| 客户端本机，大文件且无命令执行能力 | scp/共享盘先搬上服务机 → `file_path` | 零 | 需人工/脚本介入 |
+
+- `file_b64` 与 REST 直传的**落盘名都是服务端随机 tmp 名**（`tmpXXXXXX.后缀`，
+  `filename` 参数只取后缀）——工作流参数必须引用**返回的 `name`**，不可预测。
+- 把调用方本机路径（`D:/...`、`C:/...`、`/Users/...`）传给 `file_path` 必然报
+  "上传失败：文件不存在"——服务机看不到调用方磁盘，这不是实例问题，换实例重试无用。
 
 ### 3.3 轮询间隔约定（写进 submit_task 返回 hint）
 
@@ -239,5 +250,6 @@ curl -o out.mp3 \
    媒体输入先 upload 再注入 `name`，不要把 base64 塞进 params）；点名换实例前先
    看 `routing.candidates` 的 `supported` / `health`。
 4. 轮询间隔按 §3.3；不要在同一轮对话里连发多次 task_status。
-5. 大文件（>3MB）跨机器传输优先 scp/共享盘，不走 b64 参数。
+5. 大文件跨机器传输优先 REST `POST /api/upload` 直传（multipart 字节流，零上下文），
+   其次 scp/共享盘搬上服务机走 `file_path`；不要走 b64 参数（进对话历史并驻留）。
 6. 白名单内工作流清单与中文摘要：`comfyui_list_workflows`（每个工作流另有 .md 文档；清单外的工作流一律不可提交——目录有文件 ≠ 可用）。

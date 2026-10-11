@@ -149,7 +149,9 @@ def build_mcp_server(mgr: ComfyUIManager) -> MCPServer:
 
         返回 inputs/outputs/nodes 及三块：
         - health: executable（未发现阻塞项，必要非充分）/ nodes_missing（自定义节点未安装）/
-          models_missing（COMBO 字面量不在该实例选项列表，如模型文件缺失）；
+          models_missing（模型权重 COMBO 字面量不在该实例选项列表）/
+          inputs_placeholder_missing（输入媒体占位示例缺失，纯信息项，不影响 executable，
+          提交时上传实际文件即可）；
           实例不可达/登录失败时降级为 {checked: false, reason}，本地解析照常返回
         - routing（P5.13 路由推荐）: recommended_instance = 符合要求（config 规则∩可达）
           且排队最少（加权最低分，平局→default_instance）；candidates 列出每个实例的
@@ -173,7 +175,8 @@ def build_mcp_server(mgr: ComfyUIManager) -> MCPServer:
               "health":  正常 {checked: true, instance, executable: bool,
                               nodes_missing: [类名...],
                               models_missing: [{node, class_type, param, value,
-                                               available_sample, available_count}...]}
+                                               available_sample, available_count}...],
+                              inputs_placeholder_missing: [同上结构]...}       # 占位示例缺失，不影响 executable
                          降级 {checked: false, instance, reason},            # 实例不可达/登录失败
               "routing": {recommended_instance: str|null, reason: str,
                           candidates: [{instance, supported, excluded_reason,
@@ -290,9 +293,17 @@ def build_mcp_server(mgr: ComfyUIManager) -> MCPServer:
         注入对应 INPUT_*_FILE（如 INPUT_IMAGE_FILE），上传与执行须同一实例；
         file_b64 分支仅远程/跨机器客户端使用（本服务机上的素材走 file_path）。
 
+        通道选择（为省上下文）：素材在服务机 → file_path（零开销）；本机小文件
+        （<3MB，MCP 请求体 4MiB 上限）→ file_b64（b64 字符串会进入对话历史并驻留，
+        大文件一调用就占爆上下文）；本机大文件 → REST `POST /api/upload?instance=`
+        （multipart 直传，字节走 HTTP 不进模型上下文，零开销）。file_b64/REST 的
+        落盘名均为服务端随机 tmp 名，工作流参数必须引用返回的 name。
+
         Args:
             instance: 实例名（必填，与 submit_task 同一实例；取 describe 的 routing.recommended_instance）
-            file_path: 本地文件路径（与 file_b64 二选一；后缀原样保留，最省心）
+            file_path: 服务机上的文件路径（与 file_b64 二选一；后缀原样保留，最省心。
+                调用方本机的文件经 MCP 工具上传必须走 file_b64——服务机看不到
+                调用方磁盘，传本机路径必然"上传失败：文件不存在"）
             file_b64: base64 文件数据（支持裸 base64 与 data-URI 如 data:audio/wav;base64,...；图片/音频/视频扩展名均可识别）
             filename: 仅 file_b64 分支用，只取其后缀（如 clip.mp4 / .aac）；最终落盘名为随机名+该后缀，以返回的 name 为准；音频/视频 base64 建议传
             file_type: 目标文件夹 input / output / temp（ComfyUI 端目录）

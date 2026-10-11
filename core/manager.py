@@ -211,7 +211,9 @@ class ComfyUIManager:
             info = await client.object_info(session)
             if info:
                 health = check_workflow(info, wf)
-                if not health["executable"]:
+                # 此处 wf 是参数注入 + JSON 手术后的最终版：输入媒体节点上已是
+                # 调用方提供的真实文件名，缺失=未上传（占位符例外只在 describe 成立）
+                if not health["executable"] or health["inputs_placeholder_missing"]:
                     detail = []
                     if health["nodes_missing"]:
                         detail.append("缺失节点: " + ", ".join(
@@ -225,6 +227,15 @@ class ComfyUIManager:
                         if m0.get("available_sample"):
                             detail[-1] += (
                                 f"（可用 {m0['available_count']} 个，示例：{m0['available_sample']}）")
+                    if health["inputs_placeholder_missing"]:
+                        detail.append("输入文件不存在（未上传？）: " + "; ".join(
+                            f"节点 {m['node_id']}.{m['param']}={m['value']}"
+                            for m in health["inputs_placeholder_missing"][:5]))
+                        m0 = health["inputs_placeholder_missing"][0]
+                        if m0.get("available_sample"):
+                            detail[-1] += (
+                                f"（该实例可用 {m0['available_count']} 个，"
+                                f"示例：{m0['available_sample']}）")
                     raise ComfyUIError(
                         f"预检不通过（{client.instance.name}）：" + "；".join(detail))
 
@@ -303,7 +314,9 @@ class ComfyUIManager:
         """P5.8：工作流在指定实例上的健康检查（任何失败都降级，绝不抛）。
 
         返回 {checked, instance, reason?} + check_workflow 结果
-        （nodes_missing / models_missing / executable）。
+        （nodes_missing / models_missing / inputs_placeholder_missing / executable）。
+        inputs_placeholder_missing 是作者内嵌的输入媒体占位示例缺失，纯信息项，
+        不影响 executable（调用方提交时上传实际文件）。
         """
         name = instance or self.config.default_instance
         try:

@@ -73,22 +73,38 @@ def _combo_values(schema_value: Any) -> Optional[list[str]]:
     return None
 
 
+# 输入媒体加载节点：文件由调用方在提交时上传提供，工作流 JSON 里内嵌的只是
+# 作者示例占位符。占位文件不存在不代表实例缺能力，不得计入 executable。
+_INPUT_MEDIA_NODES = {
+    "LoadImage", "LoadImageFromPath",
+    "LoadAudio", "LoadVideo",
+    "VHS_LoadVideo", "VHS_LoadAudio",
+}
+
+
 def check_workflow(object_info: Optional[dict], prompt: dict) -> dict:
     """通用预检（P5.8）：节点存在性 + COMBO 参数值存在性（模型文件等）。
 
     返回：
     - nodes_missing:  [{node_id, class_type}] —— class_type 不在 object_info（自定义节点未安装，必挂）
     - models_missing: [{node_id, class_type, param, value, available_count, available_sample}]
-                      —— 工作流实际提供的字面量不在 COMBO 值列表内
-    - executable:     两列表皆空（必要非充分——不覆盖 OOM/文件损坏/动态路径加载）
+                      —— 模型权重文件（加载器节点）字面量不在 COMBO 值列表内，必挂
+    - inputs_placeholder_missing: 同 models_missing 结构 —— 输入媒体节点（LoadImage 等）
+                      字面量不在 COMBO 值列表内。describe 语境下是作者内嵌的占位示例，
+                      纯信息项，不影响 executable；submit 语境下是调用方未上传的文件，
+                      提交路径需另行拦截（见 manager 预检）。
+    - executable:     nodes_missing 与 models_missing 皆空（必要非充分——不覆盖
+                      OOM/文件损坏/动态路径加载）；输入媒体缺失不计能力阻塞
 
     规则：只检查 inputs 实际提供的参数（未提供=用默认值，不计缺失）；
     连线值（list/tuple，如 [node_id, idx]）与空串跳过；object_info 拿不到时不阻断（两列表空）。
     """
     nodes_missing: list[dict] = []
     models_missing: list[dict] = []
+    inputs_placeholder_missing: list[dict] = []
     if not object_info or not isinstance(prompt, dict):
         return {"nodes_missing": nodes_missing, "models_missing": models_missing,
+                "inputs_placeholder_missing": inputs_placeholder_missing,
                 "executable": True}
     for nid, node in prompt.items():
         if not isinstance(node, dict):
@@ -112,12 +128,17 @@ def check_workflow(object_info: Optional[dict], prompt: dict) -> dict:
                         or not value:
                     continue
                 if value not in values:
-                    models_missing.append({
+                    entry = {
                         "node_id": str(nid), "class_type": str(ct), "param": param,
                         "value": value, "available_count": len(values),
                         "available_sample": values[:5],
-                    })
+                    }
+                    if str(ct) in _INPUT_MEDIA_NODES:
+                        inputs_placeholder_missing.append(entry)
+                    else:
+                        models_missing.append(entry)
     return {"nodes_missing": nodes_missing, "models_missing": models_missing,
+            "inputs_placeholder_missing": inputs_placeholder_missing,
             "executable": not nodes_missing and not models_missing}
 
 

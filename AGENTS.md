@@ -31,6 +31,10 @@ main.py 为服务主程序！
 
 tests 子目录中，存放测试代码，临时文件，等非正式的文件，记录入 tests\ReadME.md 文件中！
 
+## 网页调试
+
+ 用 agent-browser 工具，cookies保持，显式浏览器，来调试
+
 ## PowerShell 避坑
 
 智能体调用 PowerShell 会经过多层解析，引号/`$`/`&`/`|`/中文极易被转义丢失。完整方案（本机实测）见 `PowerShell_Fix.md`，要点：

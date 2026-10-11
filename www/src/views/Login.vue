@@ -73,6 +73,7 @@ async function submit() {
         <h2 class="login-title">老虎C站</h2>
       </div>
       <p class="login-sub">AI 视频创作 · 积分计费 · 任务归属</p>
+      <p class="login-partner">加盟成为在家算力微商，可下载<span class="partner-hl">《一张显卡创业一键包》</span>，你的游戏显卡帮你赚钱......</p>
       <el-form :model="form" class="login-form" @submit.prevent="submit">
         <el-form-item>
           <el-input v-model="form.username" placeholder="用户名" size="large" clearable />
@@ -142,6 +143,15 @@ async function submit() {
   50% { box-shadow: 0 0 16px 3px rgba(249, 115, 22, 0.5); transform: scale(1.06); }
 }
 .login-title { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 1px; }
+.login-partner {
+  margin: -12px 0 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+.partner-hl { color: var(--fg); font-weight: 700; }
 .login-form :deep(.el-input__wrapper) {
   border-radius: var(--radius-sm);
   box-shadow: 0 0 0 1px var(--border) inset;
