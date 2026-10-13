@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import sqlite3
 import time
@@ -16,6 +17,7 @@ from typing import Any, Optional
 import aiosqlite
 
 from portal.config import DEFAULT_RULES, PortalSettings
+from schemas.models import ComfyUIConfig
 
 logger = logging.getLogger("portal.db")
 
@@ -126,7 +128,36 @@ CREATE TABLE IF NOT EXISTS admin_audit (
 
 CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT NOT NULL);
 
+-- ComfyUI 实例（Task-DB-Config §1）：name 被 task_records.instance 引用（逻辑引用）
+CREATE TABLE IF NOT EXISTS comfyui_instances (
+  id          INTEGER PRIMARY KEY,
+  name        TEXT UNIQUE NOT NULL,
+  url         TEXT NOT NULL,
+  password    TEXT NOT NULL DEFAULT '',
+  active      INTEGER NOT NULL DEFAULT 1,   -- 0=禁用（不可路由新任务，记录保留）
+  sort        INTEGER NOT NULL DEFAULT 0,   -- 前端列表排序
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+
+-- 实例级工作流规则（一行一 pattern；评估顺序固定 exclude → only → 都空=全支持）
+CREATE TABLE IF NOT EXISTS instance_workflow_rules (
+  id            INTEGER PRIMARY KEY,
+  instance_id   INTEGER NOT NULL REFERENCES comfyui_instances(id) ON DELETE CASCADE,
+  rule_type     TEXT NOT NULL CHECK(rule_type IN ('only','exclude')),
+  pattern       TEXT NOT NULL,
+  UNIQUE(instance_id, rule_type, pattern)
+);
+
+-- 全局工作流白名单（替代 config.allowed_workflows；active=0 等价移出白名单）
+CREATE TABLE IF NOT EXISTS workflow_whitelist (
+  id      INTEGER PRIMARY KEY,
+  pattern TEXT UNIQUE NOT NULL,
+  active  INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE INDEX IF NOT EXISTS idx_task_user ON task_records(user_id, submitted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_iwr_instance ON instance_workflow_rules(instance_id);
 CREATE INDEX IF NOT EXISTS idx_ledger_user ON credit_ledger(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_token_user ON user_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_order_user ON recharge_orders(user_id, created_at DESC);
@@ -253,3 +284,89 @@ class PortalDB:
                 raise
         finally:
             self._lock.release()
+
+
+# ------------------------------------------------------------------
+# ComfyUI 配置播种（Task-DB-Config §5：一次性、幂等；DB 为准，config.json 降级为种子）
+# ------------------------------------------------------------------
+# KV 约定（settings 表）：
+#   comfyui.default_instance   实例名（须为 active 实例）
+#   comfyui.routing.pending    float 字符串（≥0）
+#   comfyui.routing.running    float 字符串（≥0）
+#   comfyui.prune_modes        JSON 串，如 {"video_minimax_h3_r2v": "multi_ref"}
+COMFYUI_KV_DEFAULT = "comfyui.default_instance"
+COMFYUI_KV_ROUTING_PENDING = "comfyui.routing.pending"
+COMFYUI_KV_ROUTING_RUNNING = "comfyui.routing.running"
+COMFYUI_KV_PRUNE_MODES = "comfyui.prune_modes"
+_COMFYUI_KV_KEYS = (COMFYUI_KV_DEFAULT, COMFYUI_KV_ROUTING_PENDING,
+                    COMFYUI_KV_ROUTING_RUNNING, COMFYUI_KV_PRUNE_MODES)
+
+
+async def seed_comfyui_config(db: "PortalDB", raw: dict) -> dict:
+    """首次启动从 config.json 播种 ComfyUI 配置（三张表 + 四个 KV）。
+
+    幂等闸门：三张表全空且四个 KV 键全缺失才播；任何一处已有数据 → 整单跳过
+    （已有数据视为"DB 已接管"，config.json 仅作回退种子，不再覆盖）。
+    播种前用 ComfyUIConfig 同源校验，坏种子直接报错拒绝（不写半截）。
+    """
+    n_inst = await db.scalar("SELECT COUNT(*) FROM comfyui_instances", default=0)
+    n_rules = await db.scalar("SELECT COUNT(*) FROM instance_workflow_rules", default=0)
+    n_wl = await db.scalar("SELECT COUNT(*) FROM workflow_whitelist", default=0)
+    kv_present = 0
+    for k in _COMFYUI_KV_KEYS:
+        if await db.scalar("SELECT 1 FROM settings WHERE k=?", (k,)):
+            kv_present += 1
+    if n_inst or n_rules or n_wl or kv_present:
+        return {"seeded": False}
+
+    cfg = ComfyUIConfig.model_validate(raw)   # 同源校验：坏 config 直接 fail fast
+    now = utcnow()
+    async with db.transaction():
+        for sort, inst in enumerate(cfg.comfyui_instances):
+            await db._conn.execute(
+                "INSERT INTO comfyui_instances"
+                "(name, url, password, active, sort, created_at, updated_at)"
+                " VALUES(?,?,?,1,?,?,?)",
+                (inst.name, inst.url, inst.password, sort, now, now))
+        cur = await db._conn.execute("SELECT id, name FROM comfyui_instances")
+        rows = await cur.fetchall()
+        await cur.close()
+        name_to_id = {r["name"]: r["id"] for r in rows}
+        n_rules = 0
+        for inst in cfg.comfyui_instances:
+            for pat in inst.workflow_rules.only:
+                await db._conn.execute(
+                    "INSERT OR IGNORE INTO instance_workflow_rules"
+                    "(instance_id, rule_type, pattern) VALUES(?,?,?)",
+                    (name_to_id[inst.name], "only", pat))
+                n_rules += 1
+            for pat in inst.workflow_rules.exclude:
+                await db._conn.execute(
+                    "INSERT OR IGNORE INTO instance_workflow_rules"
+                    "(instance_id, rule_type, pattern) VALUES(?,?,?)",
+                    (name_to_id[inst.name], "exclude", pat))
+                n_rules += 1
+        for pat in cfg.allowed_workflows:
+            await db._conn.execute(
+                "INSERT OR IGNORE INTO workflow_whitelist(pattern, active)"
+                " VALUES(?,1)", (pat,))
+        w = cfg.routing.weights
+        await db._conn.execute(
+            "INSERT OR IGNORE INTO settings(k, v) VALUES(?, ?)",
+            (COMFYUI_KV_DEFAULT, cfg.default_instance))
+        await db._conn.execute(
+            "INSERT OR IGNORE INTO settings(k, v) VALUES(?, ?)",
+            (COMFYUI_KV_ROUTING_PENDING, repr(float(w.pending))))
+        await db._conn.execute(
+            "INSERT OR IGNORE INTO settings(k, v) VALUES(?, ?)",
+            (COMFYUI_KV_ROUTING_RUNNING, repr(float(w.running))))
+        await db._conn.execute(
+            "INSERT OR IGNORE INTO settings(k, v) VALUES(?, ?)",
+            (COMFYUI_KV_PRUNE_MODES,
+             json.dumps(cfg.workflow_prune_modes, ensure_ascii=False)))
+    logger.info("comfyui 配置播种：%d 实例 / %d 规则 / %d 白名单 / 4 KV",
+                len(cfg.comfyui_instances), n_rules, len(cfg.allowed_workflows))
+    return {"seeded": True,
+            "instances": len(cfg.comfyui_instances),
+            "rules": n_rules,
+            "whitelist": len(cfg.allowed_workflows)}

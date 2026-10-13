@@ -58,12 +58,12 @@ def build_router(mgr: ComfyUIManager) -> APIRouter:
     @r.get("/workflows")
     async def workflows():
         # P5.19：与 MCP list_workflows 同源（目录 ∩ 顶层白名单 + instances 标注）
-        return {"workflows": mgr.list_workflows_gated()}
+        return {"workflows": await mgr.list_workflows_gated()}
 
     @r.get("/workflows/{name}")
     async def workflow_detail(name: str, instance: str = Query("")):
         ok_wl, reason_wl = workflow_in_whitelist(
-            mgr.config.allowed_workflows, name)
+            await mgr.config_provider.get_whitelist(), name)
         if not ok_wl:
             # 404 不泄露"存在但未放行"（与"文件不存在"同态，P5.19 fail-closed）
             raise HTTPException(404, f"工作流不存在或未列入白名单：{name}（{reason_wl}）")

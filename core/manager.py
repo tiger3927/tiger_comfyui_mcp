@@ -16,6 +16,12 @@ from pathlib import Path
 from typing import Any, Optional
 
 from core.comfy_client import ComfyUIClient, check_workflow
+from core.config_provider import (
+    ConfigProvider,
+    ConfigSystemError,
+    InstanceRuntime,
+    StaticConfigProvider,
+)
 from core.media import collect_outputs
 from core.tasks import TaskManager
 from core.tickets import TicketStore
@@ -98,7 +104,14 @@ class ComfyUIManager:
         if self.config.default_instance not in {i.name for i in self.config.comfyui_instances}:
             raise ComfyUIError(f"default_instance={self.config.default_instance!r} 不在实例列表中")
         self.base_dir = p.resolve().parent
-        self._clients: dict[str, ComfyUIClient] = {}
+        # 配置数据源（Task-DB-Config §2.1）：缺省 Static（读上面加载的
+        # ComfyUIConfig，行为同现状）；门户启用时 main.py 注入 DbConfigProvider
+        # （读 portal.db，热更新即时生效）。self.config 保留：server/workflows_dir/
+        # portal 等段仍由它提供。
+        self.config_provider: ConfigProvider = StaticConfigProvider(self.config)
+        # 客户端缓存 key = (name, url, password)：url/password 变更自动重建，
+        # 无需手动清缓存；旧客户端随旧 key 滞留至 GC，在途任务不受影响（§0-3）
+        self._clients: dict[tuple[str, str, str], ComfyUIClient] = {}
         self.tasks = TaskManager()
         # 一次性上传票据（上传通道 REST 化）：MCP 票据工具签发 + /api/upload 核销 +
         # 预检报错内嵌。内存态，重启清零（票据短命无需持久化）。
@@ -123,42 +136,58 @@ class ComfyUIManager:
         p = Path(name)
         return p if p.is_absolute() else self.base_dir / p
 
-    def instance_names(self) -> list[str]:
-        return [i.name for i in self.config.comfyui_instances]
+    async def instance_names(self) -> list[str]:
+        return [i.name for i in await self.config_provider.get_instances()]
 
-    def list_workflows_gated(self) -> list[dict]:
+    async def list_workflows_gated(self) -> list[dict]:
         """P5.19：目录扫描 ∩ 顶层白名单（fail-closed）的对外清单（MCP/REST 同源）。
 
         每项附 instances=[实例规则放行的实例名]（静态计算，不含可达性）。
         """
+        whitelist = await self.config_provider.get_whitelist()
+        instances = await self.config_provider.get_instances()
         out: list[dict] = []
         for it in list_workflow_files(self.workflows_dir):
-            ok, _ = workflow_in_whitelist(self.config.allowed_workflows,
-                                          it["name"])
+            ok, _ = workflow_in_whitelist(whitelist, it["name"])
             if not ok:
                 continue
-            it["instances"] = [i.name for i in self.config.comfyui_instances
+            it["instances"] = [i.name for i in instances
                                if instance_supports_workflow(
                                    i.workflow_rules, it["name"])[0]]
             out.append(it)
         return out
 
-    def client_for(self, name: Optional[str] = None) -> ComfyUIClient:
-        name = name or self.config.default_instance
-        inst = next((i for i in self.config.comfyui_instances if i.name == name), None)
+    async def client_for(self, name: Optional[str] = None) -> ComfyUIClient:
+        instances = await self.config_provider.get_instances()
+        name = name or await self.config_provider.get_default_instance()
+        inst = next((i for i in instances if i.name == name), None)
         if inst is None:
-            raise ComfyUIError(f"未知实例 {name!r}，可用：{self.instance_names()}")
-        client = self._clients.get(name)
+            raise ComfyUIError(
+                f"未知实例 {name!r}，可用：{[i.name for i in instances]}")
+        key = (inst.name, inst.url, inst.password)
+        client = self._clients.get(key)
         if client is None:
             client = ComfyUIClient(inst)
-            self._clients[name] = client
+            self._clients[key] = client
         return client
+
+    async def require_active_instance(self, name: str) -> InstanceRuntime:
+        """门禁前置（Task-DB-Config §0-5）：实例必须存在且 active=1，
+        否则点名提交/上传直接拒绝（禁用实例不接新任务；在途任务不受影响）。"""
+        instances = await self.config_provider.get_instances()
+        inst = next((i for i in instances if i.name == name), None)
+        if inst is None:
+            raise ComfyUIError(
+                f"未知实例 {name!r}，可用：{[i.name for i in instances]}")
+        if not inst.active:
+            raise ComfyUIError(f"实例 {name!r} 已禁用，不能提交新任务")
+        return inst
 
     async def status_all(self) -> list[dict]:
         import aiohttp
         results: list[dict] = []
-        for name in self.instance_names():
-            client = self.client_for(name)
+        for name in await self.instance_names():
+            client = await self.client_for(name)
             # 短超时：不可达实例快速失败，不拖垮整个 status（P5.8 回归）
             async with client.make_session(timeout_total=10) as session:
                 try:
@@ -182,7 +211,7 @@ class ComfyUIManager:
         on_progress=None,
         total_timeout: float = 3600.0,
     ) -> ExecuteResult:
-        client = self.client_for(instance)
+        client = await self.client_for(instance)
 
         ok, err = validate_api_workflow(workflow)
         if not ok:
@@ -194,10 +223,11 @@ class ComfyUIManager:
             logger.warning("未匹配参数（忽略）: %s", unmatched)
 
         # JSON 手术：未提供的 INPUT_...N_FILE 文件槽节点自动摘除（含清连线），
-        # 制度按 config.workflow_prune_modes 分流（默认 image_edit）；
+        # 制度按 workflow_prune_modes 分流（默认 image_edit）；
         # 护栏 fail-closed：必需单输入/缺号/全缺 -> 报错中止
         try:
-            mode = resolve_prune_mode(self.config.workflow_prune_modes, workflow_name)
+            mode = resolve_prune_mode(
+                await self.config_provider.get_prune_modes(), workflow_name)
             if mode == "multi_ref":
                 wf, pruned = prune_multi_ref_file_nodes(wf, params or {})
             else:
@@ -326,9 +356,9 @@ class ComfyUIManager:
         inputs_placeholder_missing 是作者内嵌的输入媒体占位示例缺失，纯信息项，
         不影响 executable（调用方提交时上传实际文件）。
         """
-        name = instance or self.config.default_instance
+        name = instance or await self.config_provider.get_default_instance()
         try:
-            client = self.client_for(instance)
+            client = await self.client_for(instance)
         except ComfyUIError as e:
             return {"checked": False, "instance": name, "reason": f"未知实例：{e}"}
         try:
@@ -361,19 +391,25 @@ class ComfyUIManager:
         候选（supported ∩ reachable）中取最低分；平局 → default_instance。
         全不可达/全被规则排除 → recommended_instance=None + reason。
         """
-        weights = self.config.routing.weights
-        default = self.config.default_instance
+        weights = await self.config_provider.get_routing_weights()
+        default = await self.config_provider.get_default_instance()
+        whitelist = await self.config_provider.get_whitelist()
         candidates: list[dict[str, Any]] = []
         to_probe: list[tuple[Any, dict]] = []
-        for cfg in self.config.comfyui_instances:
+        for cfg in await self.config_provider.get_instances():
             cand: dict[str, Any] = {
                 "instance": cfg.name, "supported": True, "excluded_reason": "",
                 "reachable": None, "queued": None, "running": None,
                 "health": None, "score": None,
             }
+            if not cfg.active:
+                # 禁用实例：留在候选清单里（可观测），但不参与路由打分
+                cand.update(supported=False, excluded_reason="实例已禁用")
+                candidates.append(cand)
+                continue
             if workflow_name and workflow_name != "inline":
                 ok_wl, reason_wl = workflow_in_whitelist(
-                    self.config.allowed_workflows, workflow_name)
+                    whitelist, workflow_name)
                 if not ok_wl:
                     cand.update(supported=False,
                                 excluded_reason=f"全局白名单：{reason_wl}")
@@ -425,7 +461,7 @@ class ComfyUIManager:
         """
         out: dict[str, Any] = {"reachable": False, "queued": None,
                                "running": None, "health": None, "error": ""}
-        client = self.client_for(cfg.name)
+        client = await self.client_for(cfg.name)
         try:
             async with client.make_session(timeout_total=10) as session:
                 if not await client.login(session):
@@ -458,13 +494,10 @@ class ComfyUIManager:
         if not instance:
             raise ComfyUIError("instance 必填：先用 describe_workflow 取 "
                                "routing.recommended_instance 再提交")
-        inst = next((i for i in self.config.comfyui_instances
-                     if i.name == instance), None)
-        if inst is None:
-            raise ComfyUIError(f"未知实例 {instance!r}，可用：{self.instance_names()}")
+        inst = await self.require_active_instance(instance)
         if workflow_name and workflow_name != "inline":
             ok_wl, reason_wl = workflow_in_whitelist(
-                self.config.allowed_workflows, workflow_name)
+                await self.config_provider.get_whitelist(), workflow_name)
             if not ok_wl:
                 raise ComfyUIError(
                     f"工作流 {workflow_name!r} 未通过全局白名单：{reason_wl}")
@@ -545,7 +578,7 @@ class ComfyUIManager:
                 # job；删失败吞掉记日志（竞态：已开始执行的 prompt 删不生效，记录
                 # 会转 RUNNING，用户可再 cancel 走 /interrupt）。
                 try:
-                    client = self.client_for(record.instance)
+                    client = await self.client_for(record.instance)
                     async with client.make_session(timeout_total=20) as session:
                         if await client.login(session):
                             okq = await client.delete_from_queue(session, record.prompt_id)
@@ -562,7 +595,7 @@ class ComfyUIManager:
                 return True, "已取消（排队阶段）"
             return False, "任务已不在排队"
         if record.status == TaskStatus.RUNNING:
-            client = self.client_for(record.instance)
+            client = await self.client_for(record.instance)
             import aiohttp
             async with client.make_session(timeout_total=20) as session:
                 if not await client.login(session):
@@ -605,7 +638,8 @@ class ComfyUIManager:
         if not instance:
             raise ComfyUIError("instance 必填：媒体文件实例局部，须与 submit "
                                "同一实例（取 describe 的 routing.recommended_instance）")
-        client = self.client_for(instance)
+        await self.require_active_instance(instance)
+        client = await self.client_for(instance)
         import aiohttp
         async with client.make_session(timeout_total=120) as session:
             if not await client.login(session):

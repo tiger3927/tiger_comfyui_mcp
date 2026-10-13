@@ -41,6 +41,7 @@ const routes = [
       { path: 'recharges', name: 'admin-recharges', component: () => import('../views/admin/Recharges.vue') },
       { path: 'rules', name: 'admin-rules', component: () => import('../views/admin/Rules.vue') },
       { path: 'settings', name: 'admin-settings', component: () => import('../views/admin/Settings.vue') },
+      { path: 'comfyui', name: 'admin-comfyui', component: () => import('../views/admin/ComfyUI.vue'), meta: { title: '实例管理' } },
       { path: 'tasks', name: 'admin-tasks', component: () => import('../views/admin/Tasks.vue') },
       { path: 'audit', name: 'admin-audit', component: () => import('../views/admin/Audit.vue') },
     ],

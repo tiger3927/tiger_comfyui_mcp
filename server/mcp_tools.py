@@ -15,6 +15,7 @@ from typing import Any, Optional
 import functools
 
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.context import Context
 from mcp.server.mcpserver.exceptions import ToolError
 
 from core.manager import ComfyUIError, ComfyUIManager, workflow_in_whitelist
@@ -22,6 +23,7 @@ from core.workflow import (
     load_named_workflow,
     parse_workflow_params,
 )
+from portal.errors import PortalError
 
 logger = logging.getLogger(__name__)
 
@@ -40,10 +42,11 @@ def _resolve_workflow(mgr: ComfyUIManager, workflow_name: str,
 
 def mcp_tool_guard(fn):
     """MCP 工具错误守卫：可预期的业务错误（ComfyUIError：instance 必填/未知实例/
-    规则硬拒/任务不存在/工作流不存在等）→ ToolError（is_error=True + 原始消息
-    进 content，LLM 直接可读）；未捕获的其他异常仍走 SDK 的 UnexpectedToolError
-    （服务端 ERROR 日志带 traceback）。functools.wraps 保留签名/文档（工具 schema
-    由 inspect.signature 沿 __wrapped__ 生成，参数必填性不受影响）。"""
+    规则硬拒/任务不存在/工作流不存在等；PortalError：匿名被关/积分不足/token 上限
+    等在途上限）→ ToolError（is_error=True + 原始消息进 content，LLM 直接可读）；
+    未捕获的其他异常仍走 SDK 的 UnexpectedToolError（服务端 ERROR 日志带
+    traceback）。functools.wraps 保留签名/文档（工具 schema 由 inspect.signature
+    沿 __wrapped__ 生成，参数必填性不受影响）。"""
 
     @functools.wraps(fn)
     async def wrapper(*args, **kwargs):
@@ -51,8 +54,31 @@ def mcp_tool_guard(fn):
             return await fn(*args, **kwargs)
         except ComfyUIError as e:
             raise ToolError(str(e)) from e
+        except PortalError as e:
+            raise ToolError(f"[{e.code}] {e.message}") from e
 
     return wrapper
+
+
+def _bearer_token_from_ctx(ctx: Context | None) -> Optional[str]:
+    """MCP 请求头 Authorization: Bearer <token> → 明文 token（无则 None）。
+
+    IDE/客户端在 MCP 连接配置里配了 Bearer 头时（AuthMiddleware 已用它过
+    /mcp 鉴权门禁），提交工具 token 参数缺省即回退用它做门户 precheck/计费
+    归属——否则请求头身份与任务归属脱节，匿名被关时必然 AnonymousBlocked。
+    ctx.headers 仅 HTTP 传输有值（stdio 为 None），取不到一律 None。"""
+    if ctx is None:
+        return None
+    headers = ctx.headers
+    if not headers:
+        return None
+    auth = headers.get("authorization")
+    if not auth:
+        return None
+    auth = auth.strip()
+    if not auth.lower().startswith("bearer "):
+        return None
+    return auth[7:].strip() or None
 
 
 def build_mcp_server(mgr: ComfyUIManager) -> MCPServer:
@@ -106,7 +132,7 @@ def build_mcp_server(mgr: ComfyUIManager) -> MCPServer:
         P5.19：仅返回 config.allowed_workflows 白名单内的工作流（fail-closed：
         白名单为空 = 全不放行；目录有文件 ≠ 可用）。每项附 instances=实例规则
         放行的实例名（静态，不含可达性），可据此直接选实例。"""
-        return {"workflows": mgr.list_workflows_gated()}
+        return {"workflows": await mgr.list_workflows_gated()}
 
     @srv.tool()
     @mcp_tool_guard
@@ -157,7 +183,7 @@ def build_mcp_server(mgr: ComfyUIManager) -> MCPServer:
             }
         """
         ok_wl, reason_wl = workflow_in_whitelist(
-            mgr.config.allowed_workflows, name)
+            await mgr.config_provider.get_whitelist(), name)
         if not ok_wl:
             raise ComfyUIError(f"工作流 {name!r} 未通过全局白名单：{reason_wl}")
         wf = load_named_workflow(mgr.workflows_dir, name)
@@ -183,7 +209,8 @@ def build_mcp_server(mgr: ComfyUIManager) -> MCPServer:
                                   prompt_json: str = "",
                                   params: Optional[dict[str, Any]] = None,
                                   timeout_s: float = 3600.0,
-                                  token: Optional[str] = None) -> dict:
+                                  token: Optional[str] = None,
+                                  ctx: Optional[Context] = None) -> dict:
         """提交工作流执行（唯一执行入口），立即返回 task_id。
 
         instance 必填：用 comfyui_describe_workflow 返回的 routing.recommended_instance
@@ -208,8 +235,11 @@ def build_mcp_server(mgr: ComfyUIManager) -> MCPServer:
                 如 {"INPUT_IMAGE_FILE": "tmpxxxxxx.png"}，须同一实例）
             timeout_s: 总超时秒（默认 3600，含排队等待；超时后按状态停止并记 FAILED）
             token: 用户积分 token（可选）；传入则提交前做预检（余额/token 上限/在途
-                上限），不足即拒。不传=匿名（仅当服务允许匿名任务时）
+                上限），不足即拒。不传时回退 MCP 请求头 Authorization: Bearer <token>
+                （客户端连接配置里配的 Bearer），仍无=匿名（仅当服务允许匿名任务时）
         """
+        if not token:
+            token = _bearer_token_from_ctx(ctx)
         wf, wf_name = _resolve_workflow(mgr, workflow_name, prompt_json)
         task_id = await mgr.submit_workflow(
             instance=instance, workflow=wf, params=params,
@@ -270,7 +300,8 @@ def build_mcp_server(mgr: ComfyUIManager) -> MCPServer:
         if not inst:
             raise ComfyUIError("instance 必填（与 submit_task 同一实例，"
                                "取 describe 的 routing.recommended_instance）")
-        mgr.client_for(inst)  # 未知实例 → ComfyUIError
+        # 未知实例/已禁用实例 → ComfyUIError（禁用实例不签发上传票据）
+        await mgr.require_active_instance(inst)
         t = mgr.tickets.issue(inst, file_type or "input")
         base = (mgr.config.server.public_base_url or "").rstrip("/")
         curl = (f'curl -F "file=@<本地文件>" "{base}/api/upload'

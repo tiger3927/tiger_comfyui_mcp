@@ -48,6 +48,9 @@ onMounted(load)
       <el-table-column label="用户" width="90">
         <template #default="{ row }">{{ row.user_id || '匿名' }}</template>
       </el-table-column>
+      <el-table-column prop="username" label="用户名" min-width="110">
+        <template #default="{ row }"><span class="muted">{{ row.username || '—' }}</span></template>
+      </el-table-column>
       <el-table-column prop="workflow_name" label="工作流" min-width="180" />
       <el-table-column prop="instance" label="实例" min-width="120" />
       <el-table-column label="状态" width="100">

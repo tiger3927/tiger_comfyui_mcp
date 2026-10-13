@@ -89,6 +89,7 @@ function logout() {
           <el-menu-item index="/admin/recharges"><el-icon><CreditCard /></el-icon><span>充值单</span></el-menu-item>
           <el-menu-item index="/admin/rules"><el-icon><Setting /></el-icon><span>计费规则</span></el-menu-item>
           <el-menu-item index="/admin/settings"><el-icon><Tools /></el-icon><span>系统参数</span></el-menu-item>
+          <el-menu-item index="/admin/comfyui"><el-icon><Monitor /></el-icon><span>实例管理</span></el-menu-item>
           <el-menu-item index="/admin/tasks"><el-icon><List /></el-icon><span>全平台任务</span></el-menu-item>
           <el-menu-item index="/admin/audit"><el-icon><Notebook /></el-icon><span>审计日志</span></el-menu-item>
         </el-sub-menu>
@@ -125,6 +126,7 @@ function logout() {
           <el-menu-item index="/admin/recharges"><el-icon><CreditCard /></el-icon><span>充值单</span></el-menu-item>
           <el-menu-item index="/admin/rules"><el-icon><Setting /></el-icon><span>计费规则</span></el-menu-item>
           <el-menu-item index="/admin/settings"><el-icon><Tools /></el-icon><span>系统参数</span></el-menu-item>
+          <el-menu-item index="/admin/comfyui"><el-icon><Monitor /></el-icon><span>实例管理</span></el-menu-item>
           <el-menu-item index="/admin/tasks"><el-icon><List /></el-icon><span>全平台任务</span></el-menu-item>
           <el-menu-item index="/admin/audit"><el-icon><Notebook /></el-icon><span>审计日志</span></el-menu-item>
         </el-sub-menu>

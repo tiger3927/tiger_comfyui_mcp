@@ -54,9 +54,17 @@ const pieKeys = [
   ['credit_flow', '积分流向'],
   ['workflow_top', '工作流 Top10'],
   ['media', '媒体类型'],
-  ['instance', '实例负载'],
+  ['instance', '实例任务分布'],
   ['recharge_status', '充值订单状态'],
 ]
+
+// ---------------- 实例总览（实时探针 + 窗口内聚合）----------------
+const GB = 1073741824
+const instances = computed(() => data.value?.instances || [])
+const gpus = (row) => (row.devices || []).map((d) => {
+  const name = String(d.name || '').replace(/\bcuda:\d+\s*/i, '').replace(/ : .*$/, '')
+  return `${name} ${((d.vram_free || 0) / GB).toFixed(1)}/${((d.vram_total || 0) / GB).toFixed(0)}GB`
+}).join('；') || '—'
 const pieCharts = computed(() =>
   pieKeys.map(([key, title]) => ({
     key, title,
@@ -160,6 +168,27 @@ const durationOpt = computed(() => {
   }]
   return o
 })
+// 7 实例成功率对比（横向柱，仅展示有成败记录的实例）
+const instSuccessOpt = computed(() => {
+  const rows = instances.value
+    .filter((x) => x.success_rate != null)
+    .sort((a, b) => b.success_rate - a.success_rate)
+  const o = baseLine()
+  o.tooltip.formatter = '{b}: {c}%'
+  o.xAxis = { ...valAxis(), max: 100 }
+  o.yAxis = {
+    type: 'category', inverse: true, data: rows.map((r) => r.name),
+    axisLabel: { color: textColor.value, fontSize: 10 },
+    axisLine: { lineStyle: { color: axisLineColor.value } },
+  }
+  o.series = [{
+    name: '成功率(%)', type: 'bar', barWidth: '50%',
+    data: rows.map((r) => +(r.success_rate * 100).toFixed(1)),
+    label: { show: true, position: 'right', color: textColor.value,
+      formatter: (p) => p.value + '%' },
+  }]
+  return o
+})
 const lineCharts = computed(() => [
   { key: 'consume', title: '积分消耗趋势', option: consumeOpt.value },
   { key: 'tasks', title: '任务量趋势', option: tasksOpt.value },
@@ -167,6 +196,7 @@ const lineCharts = computed(() => [
   { key: 'users', title: '用户增长（累计/新增）', option: usersOpt.value },
   { key: 'success', title: '成功率趋势', option: successOpt.value },
   { key: 'duration', title: '平均耗时趋势', option: durationOpt.value },
+  { key: 'inst-success', title: `实例成功率对比（近 ${range.value} 天）`, option: instSuccessOpt.value },
 ])
 </script>
 
@@ -251,6 +281,49 @@ const lineCharts = computed(() => [
         </div>
       </el-col>
     </el-row>
+
+    <!-- 实例总览（实时状态 + 窗口内聚合）：纳入 2 列网格 lg=12，与曲线图卡同宽（标准卡宽）。
+         注意：页面根 .row-gap 是 flex-wrap，子项默认收缩包裹 → el-row 必须 width:100% 才占满整行；
+         列全 min-width，卡宽够时撑满、不够时 el-table 横滚；行数多 max-height 纵滚 -->
+    <el-row :gutter="14" class="gap-row inst-row" v-if="instances.length">
+      <el-col :xs="24" :lg="12">
+        <div class="card inst-card">
+          <div class="chart-title">ComfyUI 实例总览（近 {{ range }} 天）</div>
+          <el-table :data="instances" size="small" stripe :max-height="460">
+            <el-table-column label="实例" min-width="100">
+              <template #default="{ row }">
+                <span>{{ row.name }}</span>
+                <el-tag v-if="row.is_default" type="warning" size="small" style="margin-left: 6px">默认</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="70">
+              <template #default="{ row }">
+                <el-tag v-if="row.connected" type="success" size="small">在线</el-tag>
+                <el-tooltip v-else :content="row.error || '不可达'" placement="top">
+                  <el-tag type="danger" size="small">离线</el-tag>
+                </el-tooltip>
+              </template>
+            </el-table-column>
+            <el-table-column label="GPU / 显存(可用/总量)" min-width="160">
+              <template #default="{ row }">{{ gpus(row) }}</template>
+            </el-table-column>
+            <el-table-column label="ComfyUI 队列(排队/执行)" min-width="80">
+              <template #default="{ row }">
+                {{ row.connected ? `${row.queue_pending ?? 0} / ${row.queue_running ?? 0}` : '—' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="tasks_active" label="服务在途" min-width="60" />
+            <el-table-column prop="tasks_total" label="窗口任务" min-width="60" />
+            <el-table-column label="成功率" min-width="64">
+              <template #default="{ row }">{{ row.success_rate != null ? (row.success_rate * 100).toFixed(1) + '%' : '—' }}</template>
+            </el-table-column>
+            <el-table-column label="平均耗时" min-width="70">
+              <template #default="{ row }">{{ row.dur_avg != null ? row.dur_avg + 's' : '—' }}</template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </el-col>
+    </el-row>
   </div>
 </template>
 
@@ -267,6 +340,17 @@ const lineCharts = computed(() => [
 .chart-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
 .chart { width: 100%; height: 260px; }
 .chart-empty { height: 260px; display: flex; align-items: center; justify-content: center; }
+/* 实例总览：行必须撑满 flex 容器（根 .row-gap 是 flex-wrap，子项默认收缩包裹）；
+   卡宽由 el-col lg=12 决定，与曲线图卡同宽 */
+.inst-row { width: 100%; }
+.inst-card { padding: 14px 16px; }
+
+/* 手机：KPI/饼图/曲线行的自然宽 = 容器+14（EP gutter 负 margin，内容撑到 364）；
+   本行同步 +14 并禁止 flex 收缩，实例卡 = 350，与 KPI/饼图/曲线卡同宽对齐。
+   桌面端不受影响（仍 width:100%，与其他行同宽） */
+@media (max-width: 575px) {
+  .inst-row { width: calc(100% + 14px); flex-shrink: 0; max-width: 364px; }
+}
 
 /* 手机：图表高度收紧 */
 @media (max-width: 767px) {

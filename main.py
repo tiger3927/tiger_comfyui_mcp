@@ -151,6 +151,15 @@ def build_app(config_path: Path | None = None) -> FastAPI:
                 _portal_raw, public_base_url=manager.config.server.public_base_url)
             portal_app = build_portal_app(_psettings, manager.tasks.list_full)
             manager.precheck = portal_app.precheck
+            # Task-DB-Config §3：管理端写操作后的缓存失效钩子（lifespan 挂上
+            # DbConfigProvider 后回填）+ 勾选矩阵行数据源（workflows_dir 文件名）
+            portal_app.state.invalidate_comfyui_config = None
+            _wf_dir = manager.workflows_dir
+            portal_app.state.workflow_names_provider = (
+                lambda: sorted(p.stem for p in _wf_dir.glob("*.json"))
+                if _wf_dir.is_dir() else [])
+            # 系统看板"实例总览"：实时探针（同 MCP comfyui_status，短超时降级）
+            portal_app.state.instances_provider = manager.status_all
             log.info("[portal] 已启用：db=%s", _psettings.db_path)
         else:
             log.info("[portal] config 无 portal 段，门户未启用")
@@ -174,8 +183,12 @@ def build_app(config_path: Path | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         async with drive:
+            try:
+                _instance_names = await manager.instance_names()
+            except Exception:
+                _instance_names = ["<配置读取失败>"]
             log.info("服务启动：实例=%s 认证=%s 端口=%s:%s",
-                     manager.instance_names(),
+                     _instance_names,
                      "on" if portal_app is not None else "OFF",
                      manager.config.server.host, manager.config.server.port)
             c = manager.config
@@ -196,6 +209,25 @@ def build_app(config_path: Path | None = None) -> FastAPI:
                     await _portal_start(portal_app)
                 except Exception:
                     log.exception("[portal] 启动失败（降级：门户暂不可用）")
+                # Task-DB-Config §2.3/§5：门户 DB 就绪后，先播种再挂 DbConfigProvider
+                # （热更新路径生效：SQL/管理端改库即下次请求按新配置；fail-closed 见 §6）
+                if portal_app.state.db is not None:
+                    try:
+                        from portal.db import seed_comfyui_config
+                        _seed = await seed_comfyui_config(
+                            portal_app.state.db, _raw_cfg)
+                        log.info("[comfyui-db] 播种：%s", _seed)
+                        from core.config_provider import DbConfigProvider
+                        manager.config_provider = DbConfigProvider(
+                            portal_app.state.db)
+                        portal_app.state.invalidate_comfyui_config = (
+                            manager.config_provider.invalidate)
+                        log.info("[comfyui-db] manager 已切 DbConfigProvider"
+                                 "（实例/规则/白名单/default/权重/手术制度 读 portal.db）")
+                    except Exception:
+                        # 保持 Static provider：行为同现状（不静默混合两种来源）
+                        log.exception("[comfyui-db] 播种/provider 切换失败"
+                                      "（保持 Static，config.json 为准）")
             try:
                 yield
             finally:
