@@ -27,7 +27,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, RedirectResponse
 
 from core.cleanup import start_cleanup_loop
 from core.manager import get_manager
@@ -299,6 +299,10 @@ def build_app(config_path: Path | None = None) -> FastAPI:
 
     @app.get("/")
     async def root():
+        # 门户启用时根路径直接进门户（相对路径跳转，不受代理 Host 影响）；
+        # 未启用门户时保留 JSON 服务信息（兼容老探活/探测脚本）
+        if portal_app is not None:
+            return RedirectResponse("/portal/")
         return {"service": "tiger-comfyui-mcp",
                 "endpoints": ["/mcp/", "/api/*", "/files/*"]}
 
