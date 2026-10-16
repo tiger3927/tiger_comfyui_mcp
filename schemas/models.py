@@ -61,6 +61,10 @@ class ServerConfig(BaseModel):
     # 非本机 Host 连 /mcp/ 返回 421）。支持 "host:*" 通配端口，如 "119.84.39.2:*"
     mcp_allowed_hosts: list[str] = []
     mcp_allowed_origins: list[str] = []
+    # 票据上传通道限流：每真实 IP 在 upload_window_s 滑动窗口内最多 upload_max_per_ip
+    # 次（Bearer 通道不在此列；反代后真实 IP 取 X-Real-IP/XFF，见 rest_api._client_ip）
+    upload_max_per_ip: int = 300
+    upload_window_s: float = 3600.0
 
 
 class ComfyUIConfig(BaseModel):

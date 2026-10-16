@@ -23,11 +23,25 @@ logger = logging.getLogger(__name__)
 # ── 媒体上传（唯一上传通道）防护 ──────────────────────────────────────
 # 单文件上限：H3 类视频参考可能较大，取 200MB（超过即 413，流式边收边判）
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024
-# 票据上传的每 IP 限流（滑动窗口 1 小时；Bearer 通道不在此列，门户自有风控）
-_UPLOAD_WINDOW_S = 3600.0
-_UPLOAD_MAX_PER_IP = 30
+# 票据上传的每 IP 限流（额度/窗口取自 config.server.upload_max_per_ip/upload_window_s，
+# 默认 300 次/小时；Bearer 通道不在此列，门户自有风控）
 _ip_uploads: dict[str, list[float]] = {}
 _upload_lock = threading.Lock()
+
+
+def _client_ip(request: Request) -> str:
+    """反代后的真实客户端 IP。
+
+    优先 X-Real-IP（nginx 反代以 $remote_addr 覆盖式写入，客户端伪造不了），
+    其次 X-Forwarded-For 首项，最后直连地址（本机/无代理场景）。
+    """
+    ip = request.headers.get("x-real-ip", "").strip()
+    if ip:
+        return ip
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "-"
 
 
 class TaskRequest(BaseModel):
@@ -137,20 +151,26 @@ def build_router(mgr: ComfyUIManager) -> APIRouter:
                                      "（与 submit 同一实例，取 describe 的 "
                                      "routing.recommended_instance）")
         if ticket.strip():
-            ok, err = mgr.tickets.consume(ticket.strip(), instance, file_type)
-            if not ok:
-                raise HTTPException(403, f"上传票据校验失败：{err}")
-            ip = request.client.host if request.client else "-"
+            # 先限流、后核销票据：429 不再烧掉一次性票据（TTL 内窗口滑出可原票重试）
+            srv = mgr.config.server
+            ip = _client_ip(request)
             now = time.time()
             with _upload_lock:
                 window = [t for t in _ip_uploads.get(ip, [])
-                          if now - t < _UPLOAD_WINDOW_S]
-                if len(window) >= _UPLOAD_MAX_PER_IP:
+                          if now - t < srv.upload_window_s]
+                if len(window) >= srv.upload_max_per_ip:
+                    logger.warning("[upload] 限流429：ip=%s 窗口=%ds 已用=%d/%d",
+                                   ip, int(srv.upload_window_s), len(window),
+                                   srv.upload_max_per_ip)
                     raise HTTPException(
-                        429, f"上传过于频繁（每 IP 每 {_UPLOAD_WINDOW_S / 3600:.0f} "
-                             f"小时上限 {_UPLOAD_MAX_PER_IP} 次），请稍后再试")
+                        429, f"上传过于频繁（每 IP 每 {srv.upload_window_s / 3600:.1f} "
+                             f"小时上限 {srv.upload_max_per_ip} 次），请稍后再试")
                 window.append(now)
                 _ip_uploads[ip] = window
+            ok, err = mgr.tickets.consume(ticket.strip(), instance, file_type)
+            if not ok:
+                logger.warning("[upload] 票据403：ip=%s err=%s", ip, err)
+                raise HTTPException(403, f"上传票据校验失败：{err}")
         suffix = Path(file.filename or "upload.png").suffix or ".png"
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
             # 流式落盘 + 体积上限（不在内存里攒整个文件）

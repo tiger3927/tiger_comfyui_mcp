@@ -32,7 +32,8 @@ python main.py
 | `default_instance` | 默认实例名（路由平局打破 + describe 定向 health 检查未传 instance 时用；submit/upload 的 instance 必填，不用于兜底） |
 | `routing.weights` | 路由打分权重（P5.13）：`score = pending×pending + running×running`，供 describe 的 routing 块选"符合要求 ∩ 排队最少"实例；默认 `{pending: 1.0, running: 2.0}` |
 | `server.host` / `server.port` | 监听地址/端口，默认 `0.0.0.0:18800` |
-| `server.mcp_allowed_hosts` / `server.mcp_allowed_origins` | MCP `/mcp/` 的 Host/Origin 白名单（mcp 2.x DNS rebinding 防护；不配置=仅放行 localhost，用其他地址连 `/mcp/` 报 421）；支持 `host:*` 通配端口，如 `"119.84.39.2:*"` |
+| `server.mcp_allowed_hosts` / `server.mcp_allowed_origins` | MCP `/mcp/` 的 Host/Origin 白名单（mcp 2.x DNS rebinding 防护；不配置=仅放行 localhost，用其他地址连 `/mcp/` 报 421）；支持 `host:*` 通配端口，如 `"119.84.39.2:*"`；**注意 `host:*` 只匹配带端口的 Host，不带端口的裸域名/IP 须另列精确条目**（反代场景 Host 常无端口） |
+| `server.upload_max_per_ip` / `server.upload_window_s` | 票据上传通道限流：每真实 IP（X-Real-IP/XFF）在 `upload_window_s` 秒滑动窗口内最多 `upload_max_per_ip` 次，默认 300/3600；Bearer 通道不在此列 |
 | `command_token` | 全权限 Bearer token（可调用执行类工具） |
 | `query_token` | 只读 Bearer token（状态/列表/描述/任务查询；执行类 403） |
 | `workflows_dir` / `output_dir` / `log_dir` | 工作流目录 / 生成产物落盘 / 日志 |
