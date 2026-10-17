@@ -33,7 +33,7 @@ tests 子目录中，存放测试代码，临时文件，等非正式的文件�
 
 ## 网页调试
 
- 用 agent-browser 工具，cookies保持，显式浏览器，来调试
+ 用 agent-browser 工具，cookies保持，显式浏览器，来调试，便于人工查看和自动化测试！！！
 
 ## PowerShell 避坑
 
@@ -45,22 +45,3 @@ tests 子目录中，存放测试代码，临时文件，等非正式的文件�
 - **排查顺序**：先手动跑一遍完整命令行；乱码→编码层（BOM/UTF-8 混用）；命令找不到/参数错乱→转义层，换 `-EncodedCommand`；中文传到外部程序异常→控制台代码页 `chcp 65001`。
 
 
-## 大牛8卡4090服务器（用于正式部署）调试阶段在本机调试
-
-GPU：8× RTX 4090（每张 24GB 显存），后 4 张已在使用
-
-ssh 公网连接IP地址：119.84.39.2
-
-ssh 端口  20022
-
-用户名：newgoai 密码：Newgoai@147#@!
-（sudo 需要输密码，非 NOPASSWD）
-
-证书登录：本机 `~/.ssh/id_rsa.pub` 已放置到服务器的 root 用户和 newgoai 用户的 `~/.ssh/authorized_keys`，可证书免密登录
-
-首选连接方式（root，免密）：`ssh 119.84.39.2`（`~/.ssh/config` 已有 `Host 119.84.39.2` 条目：User root / Port 20022）
-或显式：`ssh -i ~/.ssh/id_rsa -p 20022 root@119.84.39.2`
-
-备选连接方式，一半不用的：（newgoai，免密）：`ssh -i ~/.ssh/id_rsa -p 20022 newgoai@119.84.39.2`
-
-采用服务器的  conda 的 base 环境来执行正式部署程序，但是不能与其他程序的库版本冲突！
