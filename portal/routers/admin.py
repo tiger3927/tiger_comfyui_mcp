@@ -11,7 +11,8 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 
 from schemas.models import ComfyUIConfig
-from portal.accounts import grant_credits
+from portal.accounts import grant_credits, set_password
+from portal.routers.auth import _clear_login_fail
 from portal.db import (COMFYUI_KV_DEFAULT, COMFYUI_KV_PRUNE_MODES,
                        COMFYUI_KV_ROUTING_PENDING, COMFYUI_KV_ROUTING_RUNNING,
                        utcnow)
@@ -125,6 +126,36 @@ async def set_user(request: Request, uid: int, body: DisableIn,
     await _audit(db, user["id"],
                  "disable_user" if body.disabled else "enable_user", str(uid), "")
     return {"ok": True}
+
+
+# 随机密码字母表：去易混淆字符（0 O 1 l I），便于微信转发/手抄
+_PWD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+
+
+def _gen_password(length: int = 12) -> str:
+    while True:
+        pwd = "".join(secrets.choice(_PWD_ALPHABET) for _ in range(length))
+        if (any(c.islower() for c in pwd) and any(c.isupper() for c in pwd)
+                and any(c.isdigit() for c in pwd)):
+            return pwd
+
+
+@router.post("/admin/users/{uid}/reset-password")
+async def reset_password(request: Request, uid: int,
+                         user: dict = Depends(require_admin)):
+    """管理员重置用户密码：随机生成，仅本次响应返回（审计不存明文）。"""
+    db = request.app.state.db
+    row = await db.fetch_one("SELECT id, username FROM users WHERE id=?", (uid,))
+    if row is None:
+        raise NotFound("用户不存在")
+    if uid == user["id"]:
+        raise BadRequest("不能重置自己的密码（防误锁），请在账户页修改")
+    new_pwd = _gen_password()
+    await set_password(db, uid, new_pwd)
+    _clear_login_fail(row["username"])  # 清掉旧密码试错残留的锁定
+    await _audit(db, user["id"], "reset_password", str(uid),
+                 f"target={row['username']}")
+    return {"ok": True, "username": row["username"], "new_password": new_pwd}
 
 
 # ------------------------------------------------------------------ token

@@ -63,6 +63,42 @@ function toggleDisabled(u) {
     .catch(() => {})
 }
 
+const pwdDialog = ref(false)
+const pwdResult = ref(null)
+
+function resetPassword(u) {
+  ElMessageBox.confirm(
+    `确认重置 ${u.username} 的密码？新密码只显示一次，请复制后发给用户。`,
+    '重置密码', { type: 'warning', confirmButtonText: '重置' })
+    .then(async () => {
+      try {
+        const r = await api.post(`/admin/users/${u.id}/reset-password`)
+        pwdResult.value = r
+        pwdDialog.value = true
+      } catch (e) { /* */ }
+    })
+    .catch(() => {})
+}
+
+async function copyPwd() {
+  const pwd = pwdResult.value?.new_password || ''
+  if (!pwd) return
+  try {
+    await navigator.clipboard.writeText(pwd)
+    ElMessage.success('已复制，请发给用户')
+  } catch {
+    const ta = document.createElement('textarea')
+    ta.value = pwd
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    ta.remove()
+    ElMessage.success('已复制，请发给用户')
+  }
+}
+
 async function openDetail(u) {
   detail.value = { user: u, tokens: [], ledger: [], tasks: [], loading: true }
   showDetail.value = true
@@ -108,9 +144,10 @@ async function openDetail(u) {
         </template>
       </el-table-column>
       <el-table-column prop="created_at" label="注册时间" width="170" />
-      <el-table-column label="操作" min-width="200" fixed="right">
+      <el-table-column label="操作" min-width="300" fixed="right">
         <template #default="{ row }">
           <el-button size="small" @click="adjust(row)">调额</el-button>
+          <el-button size="small" type="primary" plain @click="resetPassword(row)">重置密码</el-button>
           <el-button size="small" type="warning" plain @click="openDetail(row)">详情</el-button>
           <el-button size="small" :type="row.disabled ? 'success' : 'danger'" plain @click="toggleDisabled(row)">
             {{ row.disabled ? '启用' : '停用' }}
@@ -186,10 +223,28 @@ async function openDetail(u) {
       </div>
       <div v-else-if="detail" class="muted">加载中…</div>
     </el-drawer>
+
+    <el-dialog v-model="pwdDialog" title="密码已重置" width="440px">
+      <div v-if="pwdResult">
+        <p>用户 <b>{{ pwdResult.username }}</b> 的新密码：</p>
+        <div class="pwd-box">{{ pwdResult.new_password }}</div>
+        <p class="pwd-warn">⚠ 关闭本对话框后密码不再显示，请立即复制并发给用户。</p>
+      </div>
+      <template #footer>
+        <el-button type="primary" @click="copyPwd">复制密码</el-button>
+        <el-button @click="pwdDialog = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <style scoped>
 .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
 .mono { background: rgba(127,127,127,.15); padding: 1px 6px; border-radius: 4px; }
+.pwd-box {
+  font-family: Consolas, Menlo, monospace; font-size: 22px; letter-spacing: 2px;
+  background: rgba(127,127,127,.15); padding: 12px; border-radius: 6px;
+  text-align: center; user-select: all; margin: 10px 0;
+}
+.pwd-warn { color: var(--accent); font-size: 13px; }
 </style>
